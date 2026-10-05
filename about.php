@@ -69,21 +69,35 @@
                             <div class="text-center">
                                 <img class="img-fluid rounded-circle mb-4 px-4" src="assets/img/wi.jpeg" alt="perfil" />
                                 <h5 class="fw-bolder">Wilfredo Hernández</h5>
-                                <div class="fst-italic text-muted">Founder &amp; CEO</div>
+                                <div class="fst-italic text-muted">Director de proyecto </div>
                             </div>
                         </div>
                         <div class="col mb-5 mb-5 mb-xl-0">
                             <div class="text-center">
-                                <img class="img-fluid rounded-circle mb-4 px-4" src="assets/img/al.jpeg" alt="perfil" />
-                                <h5 class="fw-bolder">Alessandra Moreno</h5>
-                                <div class="fst-italic text-muted">Operations Manager</div>
+                                <img class="img-fluid rounded-circle mb-4 px-4" src="assets/img/jorge.png" alt="perfil" />
+                                <h5 class="fw-bolder">Jorge Hernández</h5>
+                                <div class="fst-italic text-muted">Desarrollador</div>
                             </div>
                         </div>
                         <div class="col mb-5 mb-5 mb-sm-0">
                             <div class="text-center">
-                                <img class="img-fluid rounded-circle mb-4 px-4" src="assets/img/cho.jpg" alt="perfil" />
-                                <h5 class="fw-bolder">Roberto Mejía</h5>
-                                <div class="fst-italic text-muted">CFO</div>
+                                <img class="img-fluid rounded-circle mb-4 px-4" src="assets/img/guille.png" alt="perfil" />
+                                <h5 class="fw-bolder">Guillermo Flores</h5>
+                                <div class="fst-italic text-muted">Desarrollador</div>
+                            </div>
+                        </div>
+                        <div class="col mb-5 mb-5 mb-xl-0">
+                            <div class="text-center">
+                                <img class="img-fluid rounded-circle mb-4 px-4" src="assets/img/equipo_placeholder.png" alt="perfil" />
+                                <h5 class="fw-bolder">Isaac Huezo</h5>
+                                <div class="fst-italic text-muted">Desarrollador</div>
+                            </div>
+                        </div>
+                        <div class="col mb-5 mb-5 mb-xl-0">
+                            <div class="text-center">
+                                <img class="img-fluid rounded-circle mb-4 px-4" src="assets/img/manuel.png" alt="perfil" />
+                                <h5 class="fw-bolder">Manuel Castro</h5>
+                                <div class="fst-italic text-muted">Desarrollador</div>
                             </div>
                         </div>
                     </div>
