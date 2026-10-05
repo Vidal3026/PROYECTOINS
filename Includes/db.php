@@ -1,8 +1,9 @@
+
 <?php
 //Datos de conexión a la base de datos
 $host = "localhost";
-$usuario = "wilfredo"; //usuario de MySQL
-$password = "wilfredo3026"; //contraseña de MySQL
+$usuario = "root"; //usuario de MySQL
+$password = ""; //contraseña de MySQL
 $base_datos = "tutolink"; //nombre de la base
 
 try
