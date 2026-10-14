@@ -249,7 +249,7 @@ elseif ($seccion === 'disponibilidad') {
             ]);
         }
 
-        if ($hubo_cambio) {
+        if ($hubo_cambio || !empty($horarios)) {
             // La solicitud se vincula con su oferta y, por medio de ella, con la materia.
             $stmt_inscripciones = $conn->prepare("
                 SELECT
@@ -314,42 +314,115 @@ elseif ($seccion === 'disponibilidad') {
                   AND leida = 0
             ");
 
+            usort($inscripciones, function ($a, $b) {
+                return strcmp(
+                    $a['fecha'] . $a['hora_inicio'] . str_pad((string) $a['id_solicitud'], 10, '0', STR_PAD_LEFT),
+                    $b['fecha'] . $b['hora_inicio'] . str_pad((string) $b['id_solicitud'], 10, '0', STR_PAD_LEFT)
+                );
+            });
+
+            $stmt_actualizar_horario = $conn->prepare("
+                UPDATE solicitudes_tutorias
+                SET hora_inicio = :hora_inicio,
+                    hora_fin = :hora_fin
+                WHERE id = :id_solicitud
+            ");
+
+            $slots_ocupados = [];
+
             foreach ($inscripciones as $inscripcion) {
                 $numero_dia = (int) date('N', strtotime($inscripcion['fecha']));
                 $dia_tutoria = $dias_validos[$numero_dia - 1];
-                $sigue_cubierta = false;
+                $inicio_original_ts = strtotime($inscripcion['fecha'] . ' ' . $inscripcion['hora_inicio']);
+                $fin_original_ts = strtotime($inscripcion['fecha'] . ' ' . $inscripcion['hora_fin']);
+                $duracion_segundos = max(60, $fin_original_ts - $inicio_original_ts);
+                $mejor_slot = null;
+                $menor_distancia = PHP_INT_MAX;
 
                 foreach ($horarios as $bloque) {
-                    if (
-                        $bloque['dia'] === $dia_tutoria
-                        && $bloque['inicio'] <= $inscripcion['hora_inicio']
-                        && $bloque['fin'] >= $inscripcion['hora_fin']
+                    if ($bloque['dia'] !== $dia_tutoria) {
+                        continue;
+                    }
+
+                    $inicio_bloque_ts = strtotime($inscripcion['fecha'] . ' ' . $bloque['inicio']);
+                    $fin_bloque_ts = strtotime($inscripcion['fecha'] . ' ' . $bloque['fin']);
+
+                    for (
+                        $candidato_inicio = $inicio_bloque_ts;
+                        $candidato_inicio + $duracion_segundos <= $fin_bloque_ts;
+                        $candidato_inicio += $duracion_segundos
                     ) {
-                        $sigue_cubierta = true;
-                        break;
+                        $candidato_fin = $candidato_inicio + $duracion_segundos;
+                        $clave_slot = $inscripcion['fecha'] . '|'
+                            . date('H:i:s', $candidato_inicio) . '|'
+                            . date('H:i:s', $candidato_fin);
+
+                        if (isset($slots_ocupados[$clave_slot])) {
+                            continue;
+                        }
+
+                        $distancia = abs($candidato_inicio - $inicio_original_ts);
+                        if ($distancia < $menor_distancia) {
+                            $menor_distancia = $distancia;
+                            $mejor_slot = [
+                                'inicio' => date('H:i:s', $candidato_inicio),
+                                'fin' => date('H:i:s', $candidato_fin),
+                                'clave' => $clave_slot
+                            ];
+                        }
                     }
                 }
 
                 $stmt_cerrar_notificaciones->execute([
-                ':id_solicitud' => $inscripcion['id_solicitud']
-            ]);
-
-            if ($sigue_cubierta) {
-                    continue;
-                }
+                    ':id_solicitud' => $inscripcion['id_solicitud']
+                ]);
 
                 $fecha_legible = date('d/m/Y', strtotime($inscripcion['fecha']));
-                $hora_inicio_legible = substr($inscripcion['hora_inicio'], 0, 5);
-                $hora_fin_legible = substr($inscripcion['hora_fin'], 0, 5);
-                $mensaje = "El tutor cambió el horario de {$inscripcion['materia']}. "
-                    . "Tu inscripción del {$fecha_legible}, de {$hora_inicio_legible} "
-                    . "a {$hora_fin_legible}, ya no coincide con su nueva disponibilidad.";
+                $hora_inicio_anterior = substr($inscripcion['hora_inicio'], 0, 5);
+                $hora_fin_anterior = substr($inscripcion['hora_fin'], 0, 5);
+
+                if ($mejor_slot === null) {
+                    $mensaje = "El tutor cambió el horario de {$inscripcion['materia']}. "
+                        . "Tu inscripción del {$fecha_legible}, de {$hora_inicio_anterior} "
+                        . "a {$hora_fin_anterior}, no pudo reasignarse porque no hay "
+                        . "un bloque disponible con la duración necesaria.";
+                    $horario_nuevo_inscripcion = $descripcion_horario_nuevo;
+                } else {
+                    $slots_ocupados[$mejor_slot['clave']] = true;
+                    $nuevo_inicio = $mejor_slot['inicio'];
+                    $nuevo_fin = $mejor_slot['fin'];
+
+                    if (
+                        $nuevo_inicio === $inscripcion['hora_inicio']
+                        && $nuevo_fin === $inscripcion['hora_fin']
+                    ) {
+                        continue;
+                    }
+
+                    $stmt_actualizar_horario->execute([
+                        ':hora_inicio' => $nuevo_inicio,
+                        ':hora_fin' => $nuevo_fin,
+                        ':id_solicitud' => $inscripcion['id_solicitud']
+                    ]);
+
+                    $nuevo_inicio_legible = substr($nuevo_inicio, 0, 5);
+                    $nuevo_fin_legible = substr($nuevo_fin, 0, 5);
+                    $horario_nuevo_inscripcion = $dia_tutoria . ' '
+                        . $nuevo_inicio_legible . '-' . $nuevo_fin_legible;
+                    $mensaje = "El tutor cambió el horario de {$inscripcion['materia']}. "
+                        . "Tu tutoría del {$fecha_legible} fue actualizada de "
+                        . "{$hora_inicio_anterior}-{$hora_fin_anterior} a "
+                        . "{$nuevo_inicio_legible}-{$nuevo_fin_legible}.";
+                }
 
                 $cambio_hash = hash('sha256', json_encode([
                     'solicitud' => (int) $inscripcion['id_solicitud'],
-                    'anterior' => $horarios_anteriores,
-                    'nuevo' => $horarios,
-                'registrado_en' => microtime(true)
+                    'hora_anterior' => [
+                        $inscripcion['hora_inicio'],
+                        $inscripcion['hora_fin']
+                    ],
+                    'horario_nuevo' => $horario_nuevo_inscripcion,
+                    'registrado_en' => microtime(true)
                 ], JSON_UNESCAPED_UNICODE));
 
                 $stmt_notificacion->execute([
@@ -360,7 +433,7 @@ elseif ($seccion === 'disponibilidad') {
                     ':fecha_tutoria' => $inscripcion['fecha'],
                     ':hora_anterior_inicio' => $inscripcion['hora_inicio'],
                     ':hora_anterior_fin' => $inscripcion['hora_fin'],
-                    ':horario_nuevo' => $descripcion_horario_nuevo,
+                    ':horario_nuevo' => $horario_nuevo_inscripcion,
                     ':mensaje' => $mensaje,
                     ':cambio_hash' => $cambio_hash
                 ]);
@@ -374,7 +447,7 @@ elseif ($seccion === 'disponibilidad') {
         if ($conn->inTransaction()) {
             $conn->rollBack();
         }
-        error_log("Error al actualizar disponibilidad y notificar cambios: " . $e->getMessage());
+        error_log("Error al actualizar disponibilidad, sincronizar tutorías y notificar cambios: " . $e->getMessage());
         redirigir('error', 'db_disponibilidad');
     }
 }

@@ -27,6 +27,16 @@ if ($solicitud_id === 0) {
 $sql = "
     SELECT 
         s.*, 
+        CASE
+            WHEN s.estado IN ('CONFIRMADA', 'en_progreso') AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_inicio, s.hora_inicio)
+            ELSE s.hora_inicio
+        END AS hora_inicio,
+        CASE
+            WHEN s.estado IN ('CONFIRMADA', 'en_progreso') AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_fin, s.hora_fin)
+            ELSE s.hora_fin
+        END AS hora_fin,
         s.link_sala_virtual,
         m.nombre_materia AS materia,
         CONCAT(t.nombre, ' ', t.apellido) AS tutor 
@@ -34,6 +44,23 @@ $sql = "
     JOIN usuarios t ON s.id_tutor = t.id
     JOIN ofertas_tutorias ot ON s.id_oferta = ot.id 
     JOIN materias m ON ot.id_materia = m.id
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     WHERE s.id = :id 
     AND s.id_estudiante = :estudiante_id
 ";

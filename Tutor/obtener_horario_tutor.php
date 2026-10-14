@@ -21,7 +21,16 @@ $sql = "
     SELECT
         s.id, 
         s.fecha, 
-        s.hora_inicio, 
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_inicio, s.hora_inicio)
+            ELSE s.hora_inicio
+        END AS hora_inicio,
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_fin, s.hora_fin)
+            ELSE s.hora_fin
+        END AS hora_fin,
         s.duracion,
         s.estado, 
         m.nombre_materia AS materia,
@@ -32,6 +41,23 @@ $sql = "
     -- CAMBIO CLAVE: Unimos a la tabla de usuarios (e) para obtener los datos del ESTUDIANTE
     JOIN usuarios e ON s.id_estudiante = e.id 
     JOIN materias m ON o.id_materia = m.id 
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     -- CAMBIO CLAVE: Filtramos por el ID del TUTOR logueado
     WHERE s.id_tutor = :id_tutor
     AND s.estado IN ('CONFIRMADA', 'COMPLETADA')
@@ -67,10 +93,7 @@ foreach ($tutorias as $t) {
     
     try {
         $start_datetime = new DateTime($start_datetime_str);
-        $end_datetime = clone $start_datetime;
-        
-        // Modificamos la hora de fin basada en la duración en horas
-        $end_datetime->modify('+' . $duracion . ' hour'); 
+        $end_datetime = new DateTime($t['fecha'] . ' ' . $t['hora_fin']);
         $end_time_iso = $end_datetime->format('Y-m-d\TH:i:s');
         
     } catch (Exception $e) {

@@ -49,14 +49,31 @@ $tutorias_completadas = $stmt->fetchColumn();
 $sql_proximas = "
     SELECT 
         s.fecha, 
-        s.hora_inicio, 
-        s.hora_fin,  
+        COALESCE(d.hora_inicio, s.hora_inicio) AS hora_inicio,
+        COALESCE(d.hora_fin, s.hora_fin) AS hora_fin,
         m.nombre_materia, 
         CONCAT(t.nombre, ' ', t.apellido) AS tutor 
     FROM solicitudes_tutorias s
     JOIN usuarios t ON s.id_tutor = t.id
     JOIN ofertas_tutorias o ON s.id_oferta = o.id
     JOIN materias m ON o.id_materia = m.id
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     WHERE s.id_estudiante = :id 
     AND s.estado = 'CONFIRMADA'
     AND s.fecha >= CURDATE()

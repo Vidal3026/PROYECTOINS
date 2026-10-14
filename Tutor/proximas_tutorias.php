@@ -20,8 +20,16 @@ $sql_proximas = "
     SELECT 
         s.id AS solicitud_id,
         s.fecha, 
-        s.hora_inicio, 
-        s.hora_fin,
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_inicio, s.hora_inicio)
+            ELSE s.hora_inicio
+        END AS hora_inicio,
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_fin, s.hora_fin)
+            ELSE s.hora_fin
+        END AS hora_fin,
         s.duracion,
         s.precio_total,
         s.estado, 
@@ -31,6 +39,23 @@ $sql_proximas = "
     JOIN usuarios e ON s.id_estudiante = e.id
     JOIN ofertas_tutorias o ON s.id_oferta = o.id
     JOIN materias m ON o.id_materia = m.id
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     WHERE s.id_tutor = :id_tutor 
     AND (
         s.estado = 'CONFIRMADA'
@@ -150,7 +175,7 @@ try {
                                                     <td><?= htmlspecialchars($t['materia']) ?></td>
                                                     <td><?= htmlspecialchars($t['estudiante']) ?></td>
                                                     <td><?= date('d/m/Y', strtotime($t['fecha'])) ?></td>
-                                                    <td><?= date('h:i A', $timestamp_inicio) ?></td>
+                                                    <td><?= date('h:i A', $timestamp_inicio) . ' - ' . date('h:i A', $timestamp_fin) ?></td>
                                                     <td class="text-success fw-bold">
                                                         $<?= number_format($t['precio_total'], 2) ?></td>
                                                     <td>

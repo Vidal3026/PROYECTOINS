@@ -95,7 +95,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $sql = "
     SELECT
         s.id AS solicitud_id, 
-        s.fecha, s.hora_inicio, s.hora_fin, s.duracion, s.precio_total, s.estado, s.fecha_pago, s.id_tutor,
+        s.fecha,
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_inicio, s.hora_inicio)
+            ELSE s.hora_inicio
+        END AS hora_inicio,
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_fin, s.hora_fin)
+            ELSE s.hora_fin
+        END AS hora_fin,
+        s.duracion, s.precio_total, s.estado, s.fecha_pago, s.id_tutor,
         m.nombre_materia AS materia,
         t.nombre AS nombre_tutor, t.apellido AS apellido_tutor,
         c.id AS calificacion_existente_id,
@@ -108,6 +119,23 @@ $sql = "
     JOIN ofertas_tutorias o ON s.id_oferta = o.id
     JOIN usuarios t ON s.id_tutor = t.id 
     JOIN materias m ON o.id_materia = m.id 
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     LEFT JOIN calificaciones_tutorias c ON s.id = c.id_solicitud
     LEFT JOIN notificaciones_horario nh
         ON nh.id = (
@@ -220,7 +248,7 @@ unset($_SESSION['tipo_mensaje']);
                                         // 1. LÓGICA DE TIEMPO
                                         
                                         $timestamp_inicio = strtotime($tutoria['fecha'] . ' ' . $tutoria['hora_inicio']);
-                                        $timestamp_fin = $timestamp_inicio + ($tutoria['duracion'] * 3600);
+                                        $timestamp_fin = strtotime($tutoria['fecha'] . ' ' . $tutoria['hora_fin']);
                                         $sesion_ya_paso = ($timestamp_fin < time()); 
                                         
                                         // Inicialización de variables de control
@@ -294,7 +322,7 @@ unset($_SESSION['tipo_mensaje']);
                                                     </div>
                                                     <div class="h5 mb-0">
                                                         <i class="far fa-clock me-1"></i>
-                                                        <?= date('H:i', $timestamp_inicio) ?>
+                                                        <?= date('H:i', $timestamp_inicio) ?> - <?= date('H:i', $timestamp_fin) ?>
                                                     </div>
                                                 </div>
 
@@ -448,7 +476,7 @@ unset($_SESSION['tipo_mensaje']);
                                                             <li class="list-group-item">
                                                                 <i class="fas fa-clock me-2 text-muted"></i>
                                                                 <strong>Hora:</strong>
-                                                                <span class="float-end"><?= date('H:i', $timestamp_inicio) ?> (<?= $duracion_str ?>)</span>
+                                                                <span class="float-end"><?= date('H:i', $timestamp_inicio) ?> - <?= date('H:i', $timestamp_fin) ?></span>
                                                             </li>
                                                             <li class="list-group-item">
                                                                 <i class="fas fa-chalkboard-teacher me-2 text-muted"></i>

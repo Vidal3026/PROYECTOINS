@@ -16,13 +16,41 @@ $id_usuario = $_SESSION['id'];
 $sql = "
     SELECT
         s.id AS solicitud_id, 
-        s.fecha, s.hora_inicio, s.duracion, s.precio_total, s.estado, s.fecha_pago,
+        s.fecha,
+        CASE
+            WHEN s.estado IN ('PENDIENTE', 'ACEPTADA', 'CONFIRMADA') AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_inicio, s.hora_inicio)
+            ELSE s.hora_inicio
+        END AS hora_inicio,
+        CASE
+            WHEN s.estado IN ('PENDIENTE', 'ACEPTADA', 'CONFIRMADA') AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_fin, s.hora_fin)
+            ELSE s.hora_fin
+        END AS hora_fin,
+        s.duracion, s.precio_total, s.estado, s.fecha_pago,
         m.nombre_materia AS materia,
         t.nombre AS nombre_tutor, t.apellido AS apellido_tutor
     FROM solicitudes_tutorias s
     JOIN ofertas_tutorias o ON s.id_oferta = o.id
     JOIN usuarios t ON s.id_tutor = t.id 
     JOIN materias m ON o.id_materia = m.id 
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     WHERE s.id_estudiante = :estudiante_id
     ORDER BY s.fecha DESC, s.hora_inicio DESC;
 ";
@@ -170,7 +198,7 @@ try {
                                                     <td><?= htmlspecialchars($solicitud['nombre_tutor'] . ' ' . $solicitud['apellido_tutor']) ?>
                                                     </td>
                                                     <td><?= date('d/M/Y', strtotime($solicitud['fecha'])) ?></td>
-                                                    <td><?= date('H:i', strtotime($solicitud['hora_inicio'])) ?></td>
+                                                    <td><?= date('H:i', strtotime($solicitud['hora_inicio'])) . ' - ' . date('H:i', strtotime($solicitud['hora_fin'])) ?></td>
                                                     <td><?= htmlspecialchars($solicitud['duracion']) ?> hrs.</td>
                                                     <td>$<?= number_format($solicitud['precio_total'], 2) ?></td>
 

@@ -9,13 +9,33 @@ $tutor_id = $_SESSION['id'];
 $sql = "
     SELECT
         s.id AS solicitud_id, 
-        s.fecha, s.hora_inicio, s.hora_fin, s.duracion, s.precio_total, s.estado,
+        s.fecha,
+        COALESCE(d.hora_inicio, s.hora_inicio) AS hora_inicio,
+        COALESCE(d.hora_fin, s.hora_fin) AS hora_fin,
+        s.duracion, s.precio_total, s.estado,
         m.nombre_materia AS materia,
         e.nombre AS nombre_estudiante, e.apellido AS apellido_estudiante
     FROM solicitudes_tutorias s
     JOIN ofertas_tutorias o ON s.id_oferta = o.id
     JOIN usuarios e ON s.id_estudiante = e.id -- Unimos con el estudiante que hizo la solicitud
     JOIN materias m ON o.id_materia = m.id -- Obtenemos el nombre de la materia
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     WHERE s.id_tutor = :tutor_id AND s.estado = 'PENDIENTE'
     ORDER BY s.fecha ASC, s.hora_inicio ASC;
 ";

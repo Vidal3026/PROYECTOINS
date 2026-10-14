@@ -21,7 +21,16 @@ $sql = "
     SELECT
         s.id, 
         s.fecha, 
-        s.hora_inicio, 
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_inicio, s.hora_inicio)
+            ELSE s.hora_inicio
+        END AS hora_inicio,
+        CASE
+            WHEN s.estado = 'CONFIRMADA' AND s.fecha >= CURDATE()
+            THEN COALESCE(d.hora_fin, s.hora_fin)
+            ELSE s.hora_fin
+        END AS hora_fin,
         s.duracion,
         s.estado, 
         m.nombre_materia AS materia,
@@ -31,6 +40,23 @@ $sql = "
     JOIN ofertas_tutorias o ON s.id_oferta = o.id
     JOIN usuarios t ON s.id_tutor = t.id 
     JOIN materias m ON o.id_materia = m.id 
+    LEFT JOIN disponibilidad d ON d.id = (
+        SELECT d2.id
+        FROM disponibilidad d2
+        WHERE d2.id_tutor = s.id_tutor
+          AND d2.dia_semana = CASE WEEKDAY(s.fecha)
+              WHEN 0 THEN 'LUNES'
+              WHEN 1 THEN 'MARTES'
+              WHEN 2 THEN 'MIÉRCOLES'
+              WHEN 3 THEN 'JUEVES'
+              WHEN 4 THEN 'VIERNES'
+              WHEN 5 THEN 'SÁBADO'
+              WHEN 6 THEN 'DOMINGO'
+          END
+        ORDER BY ABS(TIME_TO_SEC(d2.hora_inicio) - TIME_TO_SEC(s.hora_inicio)),
+                 d2.hora_inicio
+        LIMIT 1
+    )
     WHERE s.id_estudiante = :id_estudiante
     AND s.estado IN ('CONFIRMADA', 'COMPLETADA')
     ORDER BY s.fecha, s.hora_inicio;
@@ -64,10 +90,7 @@ foreach ($tutorias as $t) {
     
     try {
         $start_datetime = new DateTime($start_datetime_str);
-        $end_datetime = clone $start_datetime;
-        
-        // El cálculo se hace usando la duración limpia
-        $end_datetime->modify('+' . $duracion . ' hour'); 
+        $end_datetime = new DateTime($t['fecha'] . ' ' . $t['hora_fin']);
         $end_time_iso = $end_datetime->format('Y-m-d\TH:i:s');
         
     } catch (Exception $e) {
