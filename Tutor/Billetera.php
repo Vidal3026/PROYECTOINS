@@ -46,6 +46,10 @@ if (isset($_GET['error'])) {
             $alert_type = 'warning';
             $alert_message = "Por favor, completa todos los campos del formulario de retiro (Monto, Método y Detalles).";
             break;
+        case 'monto_minimo':
+            $alert_type = 'warning';
+            $alert_message = "El monto mínimo de retiro es de $10.00.";
+            break;
         case 'db_retiro':
             $alert_type = 'danger';
             $alert_message = "Error en la base de datos al registrar la solicitud de retiro. Inténtalo más tarde.";
@@ -96,7 +100,7 @@ if (isset($_GET['error'])) {
 
                     <?php if (!empty($alert_message)): ?>
                         <div class="alert alert-<?php echo $alert_type; ?> alert-dismissible fade show" role="alert">
-                            <?php echo $alert_message; ?>
+                            <?php echo htmlspecialchars($alert_message); ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                     <?php endif; ?>

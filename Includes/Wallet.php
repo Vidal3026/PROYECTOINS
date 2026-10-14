@@ -220,6 +220,114 @@ function procesar_transaccion_tutoria($conn, $id_estudiante, $id_solicitud)
     }
 }
 
+/**
+ * Cancela una tutoría CONFIRMADA (ya pagada) por decisión del tutor y reembolsa al estudiante.
+ * Todo ocurre en una sola transacción:
+ * 1. Al estudiante se le devuelve el 100 % de lo que pagó.
+ * 2. Al tutor se le descuenta lo que había recibido por esa tutoría (su saldo puede quedar
+ *    negativo si ya lo retiró; se compensa con sus próximos ingresos).
+ * 3. Las comisiones de la plataforma de esa tutoría se revierten (movimiento COMISION negativo),
+ *    porque el servicio no se prestó.
+ *
+ * @param PDO $conn Conexión a la base de datos.
+ * @param int $id_tutor Tutor que cancela (debe ser el dueño de la tutoría).
+ * @param int $id_solicitud Tutoría a cancelar.
+ * @param string $motivo Explicación que verá el estudiante.
+ * @return array ['success' => bool, 'reembolso' => float, 'message' => string]
+ */
+function cancelar_tutoria_con_reembolso($conn, $id_tutor, $id_solicitud, $motivo)
+{
+    $stmt = $conn->prepare("SELECT id_estudiante FROM solicitudes_tutorias WHERE id = :id AND id_tutor = :tutor");
+    $stmt->execute([':id' => $id_solicitud, ':tutor' => $id_tutor]);
+    $id_estudiante = $stmt->fetchColumn();
+    if (!$id_estudiante) {
+        return ['success' => false, 'reembolso' => 0, 'message' => 'La tutoría no existe o no te pertenece.'];
+    }
+
+    // Las billeteras se crean antes de abrir la transacción (obtener_o_crear_billetera_id puede insertar).
+    $id_billetera_estudiante = obtener_o_crear_billetera_id($conn, (int) $id_estudiante);
+    $id_billetera_tutor = obtener_o_crear_billetera_id($conn, (int) $id_tutor);
+
+    try {
+        $conn->beginTransaction();
+
+        $stmt = $conn->prepare("
+            SELECT precio_total, monto_neto_tutor, fecha_pago
+            FROM solicitudes_tutorias
+            WHERE id = :id AND id_tutor = :tutor AND estado = 'CONFIRMADA'
+            FOR UPDATE
+        ");
+        $stmt->execute([':id' => $id_solicitud, ':tutor' => $id_tutor]);
+        $tutoria = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$tutoria) {
+            $conn->rollBack();
+            return ['success' => false, 'reembolso' => 0, 'message' => 'La tutoría ya estaba cerrada o cancelada.'];
+        }
+
+        $referencia = "Solicitud #{$id_solicitud}";
+        $patron = '(^|[^0-9])Solicitud #' . (int) $id_solicitud . '([^0-9]|$)';
+        $reembolso = 0.0;
+
+        if ($tutoria['fecha_pago'] !== null) {
+            $reembolso = round((float) $tutoria['precio_total'], 2);
+
+            // Lo que recibió el tutor y las comisiones cobradas por esta tutoría
+            // (se leen de los movimientos para cubrir también pagos hechos antes del desglose).
+            $stmt = $conn->prepare("
+                SELECT
+                    COALESCE(SUM(CASE WHEN tipo = 'INGRESO' AND referencia LIKE 'Ingreso %' THEN monto END), 0) AS neto,
+                    COALESCE(SUM(CASE WHEN tipo = 'COMISION' THEN monto END), 0) AS comisiones
+                FROM movimientos_billetera
+                WHERE id_billetera = :billetera AND referencia REGEXP :patron
+            ");
+            $stmt->execute([':billetera' => $id_billetera_tutor, ':patron' => $patron]);
+            $cobros = $stmt->fetch(PDO::FETCH_ASSOC);
+            $neto_tutor = round((float) ($tutoria['monto_neto_tutor'] ?? $cobros['neto']), 2);
+            $comisiones = round((float) $cobros['comisiones'], 2);
+
+            $stmt_mov = $conn->prepare("INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia)
+                                        VALUES (:billetera, :tipo, :monto, :referencia)");
+            $stmt_saldo = $conn->prepare("UPDATE billeteras SET saldo = saldo + :monto WHERE id = :billetera");
+
+            // 1. Reembolso completo al estudiante
+            $stmt_mov->execute([':billetera' => $id_billetera_estudiante, ':tipo' => 'INGRESO', ':monto' => $reembolso,
+                ':referencia' => "Reembolso {$referencia} (cancelada por el tutor)"]);
+            $stmt_saldo->execute([':monto' => $reembolso, ':billetera' => $id_billetera_estudiante]);
+
+            // 2. Se descuenta al tutor lo que había recibido
+            if ($neto_tutor > 0) {
+                $stmt_mov->execute([':billetera' => $id_billetera_tutor, ':tipo' => 'EGRESO', ':monto' => $neto_tutor,
+                    ':referencia' => "Reverso {$referencia} (cancelaste la tutoría)"]);
+                $stmt_saldo->execute([':monto' => -$neto_tutor, ':billetera' => $id_billetera_tutor]);
+            }
+
+            // 3. Se revierten las comisiones de la plataforma
+            if ($comisiones > 0) {
+                $stmt_mov->execute([':billetera' => $id_billetera_tutor, ':tipo' => 'COMISION', ':monto' => -$comisiones,
+                    ':referencia' => "Reverso de comisiones {$referencia} (tutoría cancelada)"]);
+            }
+        }
+
+        $stmt = $conn->prepare("
+            UPDATE solicitudes_tutorias
+            SET estado = 'CANCELADA', fecha_cancelacion = NOW(), motivo_rechazo = :motivo
+            WHERE id = :id
+        ");
+        $stmt->execute([':motivo' => $motivo, ':id' => $id_solicitud]);
+
+        $conn->commit();
+        return ['success' => true, 'reembolso' => $reembolso, 'message' => 'Tutoría cancelada.'];
+
+    } catch (PDOException $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        error_log("Error al cancelar con reembolso la tutoría {$id_solicitud}: " . $e->getMessage());
+        return ['success' => false, 'reembolso' => 0, 'message' => 'Error de base de datos al cancelar la tutoría.'];
+    }
+}
+
 // ... (Dentro de Includes/Wallet.php, después de las otras funciones)
 
 /**
@@ -244,8 +352,19 @@ function ejecutar_retiro_aprobado($conn, $id_tutor, $monto, $id_retiro)
     try {
         $conn->beginTransaction();
 
+        // 1b. Bloquear la billetera y verificar que el saldo alcance: evita que varios retiros
+        //     pendientes aprobados uno tras otro dejen el saldo en negativo.
+        $stmt_saldo = $conn->prepare("SELECT saldo FROM billeteras WHERE id = :id FOR UPDATE");
+        $stmt_saldo->execute([':id' => $id_billetera]);
+        $saldo_tutor = (float) $stmt_saldo->fetchColumn();
+        if ($saldo_tutor < $monto_abs) {
+            $conn->rollBack();
+            return ['success' => false, 'message' => "El tutor ya no tiene saldo suficiente para este retiro (saldo actual $"
+                . number_format($saldo_tutor, 2) . "). Recházalo o espera a que tenga saldo."];
+        }
+
         // 2. Insertar el registro de EGRESO en movimientos_billetera
-        $sql_mov = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia) 
+        $sql_mov = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia)
                     VALUES (:id_billetera, 'EGRESO', :monto, :referencia)";
         $stmt_mov = $conn->prepare($sql_mov);
         $stmt_mov->bindParam(':id_billetera', $id_billetera, PDO::PARAM_INT);

@@ -254,7 +254,12 @@ try {
                                                                     $<?= number_format($desglose['comision_estudiante'], 2) ?>.</div>
                                                             </div>
                                                         <?php elseif ($estado === 'CANCELADA'): ?>
-                                                            <div class="small text-danger mt-1">Rechazada por el tutor.</div>
+                                                            <?php if (!empty($solicitud['fecha_pago'])): ?>
+                                                                <div class="small text-danger mt-1">Cancelada por el tutor.
+                                                                    Se te reembolsaron $<?= number_format($solicitud['precio_total'], 2) ?> a tu billetera.</div>
+                                                            <?php else: ?>
+                                                                <div class="small text-danger mt-1">Rechazada por el tutor.</div>
+                                                            <?php endif; ?>
                                                             <?php if (!empty($solicitud['motivo_rechazo'])): ?>
                                                                 <div class="small border-start border-danger border-3 ps-2 mt-1 text-body">
                                                                     <strong>Motivo:</strong>

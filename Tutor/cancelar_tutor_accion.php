@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Incluye la conexión a la base de datos (ruta relativa)
 include '../Includes/db.php';
+include '../Includes/Wallet.php';
 
 // 1. Verificación de Seguridad: Autenticación y Rol
 if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'tutor') {
@@ -13,52 +14,36 @@ if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'tutor') {
     exit();
 }
 
-$id_tutor = $_SESSION['id'];
+$id_tutor = (int) $_SESSION['id'];
 
 // 2. Procesar la solicitud POST del modal
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['solicitud_id'])) {
-    $solicitud_id = $_POST['solicitud_id'];
-    
-    // Consulta de actualización: Cambia el estado a CANCELADA
-    // Se asegura de que la solicitud esté CONFIRMADA y pertenezca al tutor logueado.
-    $sql_update = "
-        UPDATE solicitudes_tutorias 
-        SET estado = 'CANCELADA', fecha_cancelacion = NOW()
-        WHERE id = :solicitud_id 
-        AND id_tutor = :id_tutor 
-        AND estado = 'CONFIRMADA'
-    ";
+$solicitud_id = filter_input(INPUT_POST, 'solicitud_id', FILTER_VALIDATE_INT);
+$motivo = trim($_POST['motivo_rechazo'] ?? '');
+$largo_motivo = mb_strlen($motivo, 'UTF-8');
 
-    try {
-        $stmt = $conn->prepare($sql_update);
-        $stmt->bindParam(':solicitud_id', $solicitud_id, PDO::PARAM_INT);
-        $stmt->bindParam(':id_tutor', $id_tutor, PDO::PARAM_INT);
-        
-        if ($stmt->execute() && $stmt->rowCount() > 0) {
-            // Éxito
-            $_SESSION['mensaje'] = "Tutoría #$solicitud_id **cancelada** exitosamente. El estudiante ha sido notificado.";
-            $_SESSION['tipo_mensaje'] = "success"; 
-            
-            // NOTA: Aquí iría la lógica adicional para manejar el reembolso/crédito
-            // al estudiante y el envío de una notificación real.
-            
-        } else {
-            // Advertencia (ya cancelada, completada, o error de ID/permisos)
-            $_SESSION['mensaje'] = "Error: La tutoría #$solicitud_id no pudo ser cancelada. Es posible que ya estuviera cerrada/cancelada o que no tenga permiso.";
-            $_SESSION['tipo_mensaje'] = "warning";
-        }
-    } catch (PDOException $e) {
-        error_log("Error al cancelar tutoría: " . $e->getMessage());
-        $_SESSION['mensaje'] = "Error de base de datos al intentar cancelar la tutoría.";
-        $_SESSION['tipo_mensaje'] = "danger";
-    }
-
-} else {
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !$solicitud_id) {
     $_SESSION['mensaje'] = "Solicitud no válida.";
     $_SESSION['tipo_mensaje'] = "danger";
+} elseif ($largo_motivo < 10 || $largo_motivo > 500) {
+    $_SESSION['mensaje'] = "Para cancelar una tutoría debes explicar el motivo al estudiante (entre 10 y 500 caracteres).";
+    $_SESSION['tipo_mensaje'] = "warning";
+} else {
+    // Cambia el estado a CANCELADA y, si ya estaba pagada, reembolsa al estudiante,
+    // descuenta al tutor lo recibido y revierte las comisiones (todo en una transacción).
+    $resultado = cancelar_tutoria_con_reembolso($conn, $id_tutor, $solicitud_id, $motivo);
+
+    if ($resultado['success']) {
+        $_SESSION['mensaje'] = "Tutoría #{$solicitud_id} cancelada. "
+            . ($resultado['reembolso'] > 0
+                ? "Se reembolsaron $" . number_format($resultado['reembolso'], 2) . " al estudiante y se descontó de tu saldo lo que habías recibido."
+                : "El estudiante ha sido notificado.");
+        $_SESSION['tipo_mensaje'] = "success";
+    } else {
+        $_SESSION['mensaje'] = "La tutoría #{$solicitud_id} no pudo ser cancelada: " . $resultado['message'];
+        $_SESSION['tipo_mensaje'] = "warning";
+    }
 }
 
 // Redirige siempre a la vista principal para mostrar el mensaje
-header("Location: proximas_tutorias.php"); 
+header("Location: proximas_tutorias.php");
 exit();
-?>

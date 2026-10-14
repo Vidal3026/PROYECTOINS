@@ -89,6 +89,22 @@ $id_tutor = $_SESSION['id'];
                             // Formateamos la calificación a un decimal
                             $promedio_formateado = number_format($promedio_general, 1);
 
+                            // 5. Dinero del tutor: saldo y lo ganado este mes (ya descontadas las comisiones)
+                            $stmt_dinero = $conn->prepare("
+                                SELECT
+                                    COALESCE(b.saldo, 0) AS saldo,
+                                    COALESCE(SUM(CASE WHEN m.tipo = 'INGRESO' AND m.referencia LIKE 'Ingreso Solicitud%'
+                                        AND m.fecha_movimiento >= DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN m.monto END), 0) AS ingresos_mes,
+                                    COALESCE(SUM(CASE WHEN m.tipo = 'COMISION'
+                                        AND m.fecha_movimiento >= DATE_FORMAT(CURDATE(), '%Y-%m-01') THEN m.monto END), 0) AS comisiones_mes
+                                FROM billeteras b
+                                LEFT JOIN movimientos_billetera m ON m.id_billetera = b.id
+                                WHERE b.id_usuario = :id_tutor
+                                GROUP BY b.id, b.saldo
+                            ");
+                            $stmt_dinero->execute([':id_tutor' => $id_tutor]);
+                            $dinero = $stmt_dinero->fetch(PDO::FETCH_ASSOC) ?: ['saldo' => 0, 'ingresos_mes' => 0, 'comisiones_mes' => 0];
+
                         } catch (PDOException $e) {
                             error_log("Error de estadísticas: " . $e->getMessage());
                             echo '<div class="alert alert-danger">Error al cargar estadísticas.</div>';
@@ -135,6 +151,37 @@ $id_tutor = $_SESSION['id'];
                         </div>
                     </div>
 
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card border-success shadow-sm mb-4">
+                                <div class="card-body">
+                                    <div class="small text-muted">Saldo disponible</div>
+                                    <h3 class="text-success mb-0">$<?= number_format($dinero['saldo'] ?? 0, 2) ?></h3>
+                                </div>
+                                <div class="card-footer small"><a href="Billetera.php">Ver billetera y retirar</a></div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-primary shadow-sm mb-4">
+                                <div class="card-body">
+                                    <div class="small text-muted">Ingresos netos de este mes</div>
+                                    <h3 class="text-primary mb-0">$<?= number_format($dinero['ingresos_mes'] ?? 0, 2) ?></h3>
+                                </div>
+                                <div class="card-footer small text-muted">Ya descontadas las comisiones</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card border-warning shadow-sm mb-4">
+                                <div class="card-body">
+                                    <div class="small text-muted">Comisiones de este mes</div>
+                                    <h3 class="text-warning mb-0">$<?= number_format($dinero['comisiones_mes'] ?? 0, 2) ?></h3>
+                                </div>
+                                <div class="card-footer small text-muted">
+                                    Tarifa de servicio (<?= porcentaje_comision(COMISION_ESTUDIANTE) ?>%) + comisión de tutor (<?= porcentaje_comision(COMISION_TUTOR) ?>%)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="row">
                         <div class="col-xl-6">
                             <div class="card mb-4">

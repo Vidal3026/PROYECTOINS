@@ -247,6 +247,29 @@ Como **Johan** → **Billetera**.
 - [ ] En el historial, por cada pago hay un INGRESO (verde) y dos COMISION (amarillo): "tarifa de servicio 5%"
   y "comisión de tutor 10%". Al pasar el mouse sobre COMISION dice que no afecta el saldo.
 
+- [ ] En el **Dashboard** del tutor aparecen las tarjetas **Saldo disponible**, **Ingresos netos de este mes**
+  y **Comisiones de este mes**.
+- [ ] En **Próximas tutorías** la columna **Recibes** muestra \$8.55 por tutoría (no el precio de \$10).
+
+### 8.1 Cancelar una tutoría ya pagada (reembolso)
+Como **Johan** → **Próximas tutorías** → botón de cancelar en la tutoría de **Fernando**.
+1. Intenta cancelar sin escribir motivo.
+   - [ ] No te deja: el motivo es obligatorio (mínimo 10 caracteres).
+2. Escribe un motivo (ej.: "Tuve un imprevisto, te propongo reprogramar el jueves.") y confirma.
+   - [ ] Mensaje: "Se reembolsaron \$10.00 al estudiante y se descontó de tu saldo lo que habías recibido."
+   - [ ] El saldo de Johan baja **\$8.55** y sus comisiones retenidas bajan **\$1.45** (se revierten).
+3. Como **Fernando** → **Mis Solicitudes** y **Billetera**.
+   - [ ] La tutoría dice "Cancelada por el tutor. Se te reembolsaron \$10.00 a tu billetera." y muestra el motivo.
+   - [ ] Su saldo subió \$10.00 y el historial muestra "Reembolso Solicitud #… (cancelada por el tutor)".
+
+### 8.2 Retiros del tutor
+Como **Johan** → **Billetera** → **Solicitar Retiro**.
+- [ ] Un retiro de **\$5** muestra "El monto mínimo de retiro es de \$10.00."
+- [ ] No puedes pedir más que tu saldo disponible; los retiros pendientes ya cuentan como usados
+  (dos retiros que juntos superan el saldo: el segundo se rechaza).
+- [ ] Como **Administrador** → **Solicitudes de Retiros**: al aprobar, el saldo del tutor baja. Si el tutor ya no
+  tiene saldo suficiente, la aprobación se rechaza con un mensaje y el saldo nunca queda negativo.
+
 ---
 
 ## 9. Lo que ve el administrador

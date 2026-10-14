@@ -15,18 +15,27 @@ $monto = filter_input(INPUT_POST, 'monto_retiro', FILTER_VALIDATE_FLOAT);
 $metodo = trim($_POST['metodo_pago'] ?? '');
 $datos = trim($_POST['datos_pago'] ?? '');
 
-if (!$monto || $monto < 10.00 || empty($metodo) || empty($datos)) {
+if (empty($metodo) || empty($datos) || !$monto) {
     header('Location: Billetera.php?error=campos_incompletos');
+    exit();
+}
+if ($monto < 10.00) {
+    header('Location: Billetera.php?error=monto_minimo');
     exit();
 }
 
 try {
     // 3. VERIFICAR SALDO SUFICIENTE
+    // Disponible = saldo menos los retiros que ya están pendientes de aprobación.
     $saldo_actual = obtener_saldo($conn, $tutor_id);
+    $stmt_pend = $conn->prepare("SELECT COALESCE(SUM(monto), 0) FROM solicitudes_retiro WHERE id_tutor = :id AND estado = 'PENDIENTE'");
+    $stmt_pend->execute([':id' => $tutor_id]);
+    $saldo_disponible = round($saldo_actual - (float) $stmt_pend->fetchColumn(), 2);
 
-    if ($monto > $saldo_actual) {
+    if ($monto > $saldo_disponible) {
         // Redirigir con mensaje de error específico
-        $msg = urlencode("El monto solicitado ($" . number_format($monto, 2) . ") excede tu saldo disponible ($" . number_format($saldo_actual, 2) . ")");
+        $msg = urlencode("El monto solicitado ($" . number_format($monto, 2) . ") excede tu saldo disponible ($"
+            . number_format(max(0, $saldo_disponible), 2) . ", descontando retiros pendientes)");
         header("Location: Billetera.php?error=saldo_insuficiente&msg={$msg}");
         exit();
     }

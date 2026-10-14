@@ -32,6 +32,7 @@ $sql_proximas = "
         END AS hora_fin,
         s.duracion,
         s.precio_total,
+        s.monto_neto_tutor,
         s.estado, 
         m.nombre_materia AS materia,
         CONCAT(e.nombre, ' ', e.apellido) AS estudiante 
@@ -137,7 +138,7 @@ try {
                                                 <th>Estudiante</th>
                                                 <th>Fecha</th>
                                                 <th>Hora</th>
-                                                <th>Costo</th>
+                                                <th title="Lo que se acredita a tu saldo después de las comisiones de la plataforma">Recibes</th>
                                                 <th>Estado</th>
                                                 <th data-sortable="false">Acción</th>
                                             </tr>
@@ -176,8 +177,9 @@ try {
                                                     <td><?= htmlspecialchars($t['estudiante']) ?></td>
                                                     <td><?= date('d/m/Y', strtotime($t['fecha'])) ?></td>
                                                     <td><?= date('h:i A', $timestamp_inicio) . ' - ' . date('h:i A', $timestamp_fin) ?></td>
-                                                    <td class="text-success fw-bold">
-                                                        $<?= number_format($t['precio_total'], 2) ?></td>
+                                                    <?php $neto = $t['monto_neto_tutor'] ?? calcular_desglose_pago($t['precio_total'])['neto_tutor']; ?>
+                                                    <td class="text-success fw-bold" title="Precio de la tutoría: $<?= number_format($t['precio_total'], 2) ?>">
+                                                        $<?= number_format($neto, 2) ?></td>
                                                     <td>
                                                         <span class="badge <?= $badge_class ?>"><?= $estado_texto ?></span>
                                                     </td>
@@ -212,7 +214,7 @@ try {
                                                             data-hora-inicio="<?= date('h:i A', $timestamp_inicio) ?>"
                                                             data-hora-fin="<?= date('h:i A', $timestamp_fin) ?>"
                                                             data-duracion="<?= htmlspecialchars($duracion_str) ?>"
-                                                            data-costo="$<?= number_format($t['precio_total'], 2) ?>"
+                                                            data-costo="$<?= number_format($neto, 2) ?> (precio $<?= number_format($t['precio_total'], 2) ?>)"
                                                             data-estado-texto="<?= htmlspecialchars($estado_texto) ?>"
                                                             data-estado-clase="<?= htmlspecialchars($badge_class) ?>"
                                                             data-sesion-paso="<?= $sesion_ya_paso ? 'true' : 'false' ?>"
@@ -302,8 +304,14 @@ try {
                             <span id="cancelar_materia"></span> con
                             <span id="cancelar_estudiante"></span>
                             (<span id="cancelar_fecha"></span>)?</p>
-                        <p class="small text-danger">Esta acción no se puede deshacer y el estudiante recibirá una
-                            notificación de cancelación.</p>
+                        <p class="small text-danger">Esta acción no se puede deshacer. Si el estudiante ya pagó, se le
+                            reembolsa el 100 % y se descuenta de tu saldo lo que habías recibido por esta tutoría.</p>
+                        <label for="cancelar_motivo" class="form-label fw-bold">Motivo de la cancelación <span
+                                class="text-danger">*</span></label>
+                        <textarea class="form-control" id="cancelar_motivo" name="motivo_rechazo" rows="3"
+                            minlength="10" maxlength="500" required
+                            placeholder="Ej.: Tuve un imprevisto; te propongo reprogramar para el jueves a las 15:00."></textarea>
+                        <div class="form-text">El estudiante verá este mensaje. Mínimo 10 caracteres.</div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">No, Volver</button>
@@ -352,7 +360,7 @@ try {
                         </li>
                         <li class="list-group-item">
                             <i class="fas fa-money-bill-wave me-2 text-muted"></i>
-                            <strong>Costo:</strong>
+                            <strong>Recibes:</strong>
                             <span class="float-end text-success fw-bold" id="detalle_costo"></span>
                         </li>
                         <li class="list-group-item">
