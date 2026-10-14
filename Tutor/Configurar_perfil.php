@@ -45,7 +45,8 @@ try {
 }
 
 // 4. **CARGAR OFERTAS Y PRECIOS DEL TUTOR** $todas_materias = [];
-$materias_precios_actuales = []; 
+$materias_precios_actuales = [];
+$materias_cupos_actuales = []; // [id_materia => cupo_maximo]
 
 try {
     // 1. Obtener todas las materias disponibles
@@ -53,7 +54,7 @@ try {
     $todas_materias = $stmt_materias->fetchAll(PDO::FETCH_ASSOC);
 
     // 2. Obtener las OFERTAS y el PRECIO que imparte el tutor desde la tabla CORRECTA
-    $sql_tutor_ofertas = "SELECT id_materia, precio_hora FROM ofertas_tutorias WHERE id_tutor = :tutor_id";
+    $sql_tutor_ofertas = "SELECT id_materia, precio_hora, cupo_maximo FROM ofertas_tutorias WHERE id_tutor = :tutor_id AND activo = 1";
     $stmt_ofertas = $conn->prepare($sql_tutor_ofertas);
     $stmt_ofertas->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT); // Asegúrate que $tutor_id es el ID del tutor autenticado
     $stmt_ofertas->execute();
@@ -62,6 +63,7 @@ try {
     while ($row = $stmt_ofertas->fetch(PDO::FETCH_ASSOC)) {
         // La clave del array es el ID de la materia, lo que permite la verificación rápida
         $materias_precios_actuales[$row['id_materia']] = $row['precio_hora'];
+        $materias_cupos_actuales[$row['id_materia']] = $row['cupo_maximo'];
     }
 
 } catch (PDOException $e) {
@@ -92,11 +94,11 @@ if (isset($_GET['anchor'])) {
 // Lógica para mostrar mensajes de éxito
 $mensaje_exito = '';
 if ($estado_exito === 'perfil') {
-    $mensaje_exito = '¡Datos personales y de perfil actualizados correctamente! 🎉';
+    $mensaje_exito = '¡Datos personales y de perfil actualizados correctamente!';
 } elseif ($estado_exito === 'materias') {
-    $mensaje_exito = '¡Materias y modalidad guardadas! 📚';
+    $mensaje_exito = '¡Materias y modalidad guardadas!';
 } elseif ($estado_exito === 'disponibilidad') {
-    $mensaje_exito = '¡Disponibilidad y horarios guardados! ⏰';
+    $mensaje_exito = '¡Disponibilidad y horarios guardados!';
 }
 
 
@@ -235,7 +237,9 @@ if ($estado_exito === 'perfil') {
                                             </div>
 
                                             <div class="mb-4 border p-3 rounded">
-                                                <label class="form-label d-block mb-3"><strong>Selecciona las materias y define tu precio por hora (USD):</strong></label>
+                                                <label class="form-label d-block mb-1"><strong>Selecciona las materias y define tu precio por hora (USD):</strong></label>
+                                                <p class="small text-muted mb-1"><i class="fas fa-percent"></i> Sobre el precio que definas, TutoLink descuenta la tarifa de servicio (<?= porcentaje_comision(COMISION_ESTUDIANTE) ?>%) y la comisión de tutor (<?= porcentaje_comision(COMISION_TUTOR) ?>%); debajo de cada materia verás cuánto recibes por hora.</p>
+                                                <p class="small text-muted mb-3"><i class="fas fa-users"></i> Indica cuántos estudiantes aceptas como máximo en cada tutoría (1 = individual, hasta <?= CUPO_MAXIMO_PERMITIDO ?> en grupal). Al llenarse el cupo, las demás solicitudes de ese horario deberán rechazarse.</p>
                                                 <div class="row">
                                                     <?php if (empty($todas_materias)): ?>
                                                         <p class="text-danger">No se encontraron materias disponibles en la base de datos.</p>
@@ -250,6 +254,8 @@ if ($estado_exito === 'perfil') {
                                                             $checked = isset($materias_precios_actuales[$materia['id']]) ? 'checked' : '';
                                                             // Obtener el precio guardado o 0.00 por defecto
                                                             $precio_actual = $materias_precios_actuales[$materia['id']] ?? '0.00';
+                                                            // Máximo de estudiantes por tutoría (1 = individual)
+                                                            $cupo_actual = (int) ($materias_cupos_actuales[$materia['id']] ?? 1);
                                                             ?>
                                                             <div class="col-sm-12 col-md-6 mb-3">
                                                                 <div class="input-group">
@@ -268,8 +274,19 @@ if ($estado_exito === 'perfil') {
                                                                         placeholder="0.00" step="0.01" min="0"
                                                                         value="<?= $precio_actual ?>"
                                                                         data-materia-id="<?= $materia['id'] ?>"
-                                                                        <?= $checked ? '' : 'disabled' ?>> 
+                                                                        <?= $checked ? '' : 'disabled' ?>>
+                                                                    <span class="input-group-text" title="Máximo de estudiantes por tutoría">
+                                                                        <i class="fas fa-users"></i>
+                                                                    </span>
+                                                                    <input type="number" class="form-control cupo-input"
+                                                                        name="materias_impartidas[<?= $materia['id'] ?>][cupo]"
+                                                                        step="1" min="1" max="<?= CUPO_MAXIMO_PERMITIDO ?>"
+                                                                        value="<?= $cupo_actual ?>"
+                                                                        title="Máximo de estudiantes por tutoría (1 = individual)"
+                                                                        style="max-width: 5rem;"
+                                                                        <?= $checked ? '' : 'disabled' ?>>
                                                                 </div>
+                                                                <div class="form-text neto-hora" data-materia-id="<?= $materia['id'] ?>"></div>
                                                             </div>
                                                         <?php endforeach; ?>
                                                     <?php endif; ?>
@@ -362,6 +379,7 @@ if ($estado_exito === 'perfil') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"
         crossorigin="anonymous"></script>
     <script src="js/scripts.js"></script>
+    <?php script_comisiones('tutor'); ?>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             // Variables de Elementos
@@ -551,15 +569,38 @@ if ($estado_exito === 'perfil') {
             cargarHorariosExistentes();
         });
 
+        // Muestra cuánto recibe el tutor por hora después de comisiones
+        function actualizarNetoHora(precioInput) {
+            const aviso = document.querySelector('.neto-hora[data-materia-id="' + precioInput.dataset.materiaId + '"]');
+            if (!aviso) return;
+            const precio = parseFloat(precioInput.value);
+            if (precioInput.disabled || !(precio > 0)) {
+                aviso.textContent = '';
+                return;
+            }
+            const d = desgloseTutolink(precio);
+            aviso.textContent = 'Recibes $' + d.netoTutor.toFixed(2) + '/h (comisiones: $'
+                + (d.comisionEstudiante + d.comisionTutor).toFixed(2) + ')';
+        }
+        document.querySelectorAll('.precio-input').forEach(input => {
+            input.addEventListener('input', () => actualizarNetoHora(input));
+            actualizarNetoHora(input);
+        });
+
         // Lógica para habilitar/deshabilitar el campo de precio
 document.querySelectorAll('.materia-checkbox').forEach(checkbox => {
     checkbox.addEventListener('change', function() {
         // Encontrar el input de precio asociado a este checkbox (dentro del mismo grupo)
         const inputGroup = this.closest('.input-group');
         const precioInput = inputGroup.querySelector('.precio-input');
-        
+        const cupoInput = inputGroup.querySelector('.cupo-input');
+
+        if (cupoInput) {
+            cupoInput.disabled = !this.checked;
+        }
         if (precioInput) {
             precioInput.disabled = !this.checked;
+            actualizarNetoHora(precioInput);
             if (this.checked) {
                 precioInput.focus();
             } else {

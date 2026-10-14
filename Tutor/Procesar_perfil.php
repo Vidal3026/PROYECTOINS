@@ -129,17 +129,22 @@ elseif ($seccion === 'materias') {
             
             // LA CORRECCIÓN CLAVE ESTÁ AQUÍ (activo = 1)
             $sql_upsert_oferta = "
-                INSERT INTO ofertas_tutorias (id_tutor, id_materia, precio_hora, activo) 
-                VALUES (:tutor_id, :id_materia, :precio_hora, 1)
-                ON DUPLICATE KEY UPDATE 
-                    precio_hora = VALUES(precio_hora), 
-                    activo = 1; 
+                INSERT INTO ofertas_tutorias (id_tutor, id_materia, precio_hora, cupo_maximo, activo)
+                VALUES (:tutor_id, :id_materia, :precio_hora, :cupo_maximo, 1)
+                ON DUPLICATE KEY UPDATE
+                    precio_hora = VALUES(precio_hora),
+                    cupo_maximo = VALUES(cupo_maximo),
+                    activo = 1;
             ";
             $stmt_upsert_m = $conn->prepare($sql_upsert_oferta);
 
             foreach ($materias_impartidas as $materia_data) {
                 $id_materia = filter_var($materia_data['id'] ?? 0, FILTER_VALIDATE_INT);
                 $precio = filter_var($materia_data['precio'] ?? 0.00, FILTER_VALIDATE_FLOAT);
+                // Cupo: 1 = individual; se limita al máximo permitido por la plataforma
+                $cupo = filter_var($materia_data['cupo'] ?? 1, FILTER_VALIDATE_INT, [
+                    'options' => ['min_range' => 1, 'max_range' => CUPO_MAXIMO_PERMITIDO, 'default' => 1]
+                ]);
 
                 // Solo procesar si el precio es mayor a cero.
                 if ($id_materia > 0 && $precio !== false && $precio > 0.00) { 
@@ -147,7 +152,8 @@ elseif ($seccion === 'materias') {
                     
                     $stmt_upsert_m->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT);
                     $stmt_upsert_m->bindParam(':id_materia', $id_materia, PDO::PARAM_INT);
-                    $stmt_upsert_m->bindParam(':precio_hora', $precio_sql); 
+                    $stmt_upsert_m->bindParam(':precio_hora', $precio_sql);
+                    $stmt_upsert_m->bindParam(':cupo_maximo', $cupo, PDO::PARAM_INT);
                     $stmt_upsert_m->execute();
                     $materias_insertadas++;
                 }
@@ -258,6 +264,7 @@ elseif ($seccion === 'disponibilidad') {
                     s.fecha,
                     s.hora_inicio,
                     s.hora_fin,
+                    s.id_oferta,
                     o.id_materia,
                     m.nombre_materia AS materia
                 FROM solicitudes_tutorias s
@@ -329,6 +336,9 @@ elseif ($seccion === 'disponibilidad') {
             ");
 
             $slots_ocupados = [];
+            // Una tutoría grupal (misma oferta, fecha y horario) se reasigna completa:
+            // todos sus estudiantes quedan en el mismo bloque nuevo.
+            $slot_por_sesion = [];
 
             foreach ($inscripciones as $inscripcion) {
                 $numero_dia = (int) date('N', strtotime($inscripcion['fecha']));
@@ -336,41 +346,52 @@ elseif ($seccion === 'disponibilidad') {
                 $inicio_original_ts = strtotime($inscripcion['fecha'] . ' ' . $inscripcion['hora_inicio']);
                 $fin_original_ts = strtotime($inscripcion['fecha'] . ' ' . $inscripcion['hora_fin']);
                 $duracion_segundos = max(60, $fin_original_ts - $inicio_original_ts);
+                $clave_sesion = $inscripcion['fecha'] . '|' . $inscripcion['hora_inicio'] . '|'
+                    . $inscripcion['hora_fin'] . '|' . $inscripcion['id_oferta'];
                 $mejor_slot = null;
                 $menor_distancia = PHP_INT_MAX;
 
-                foreach ($horarios as $bloque) {
-                    if ($bloque['dia'] !== $dia_tutoria) {
-                        continue;
-                    }
-
-                    $inicio_bloque_ts = strtotime($inscripcion['fecha'] . ' ' . $bloque['inicio']);
-                    $fin_bloque_ts = strtotime($inscripcion['fecha'] . ' ' . $bloque['fin']);
-
-                    for (
-                        $candidato_inicio = $inicio_bloque_ts;
-                        $candidato_inicio + $duracion_segundos <= $fin_bloque_ts;
-                        $candidato_inicio += $duracion_segundos
-                    ) {
-                        $candidato_fin = $candidato_inicio + $duracion_segundos;
-                        $clave_slot = $inscripcion['fecha'] . '|'
-                            . date('H:i:s', $candidato_inicio) . '|'
-                            . date('H:i:s', $candidato_fin);
-
-                        if (isset($slots_ocupados[$clave_slot])) {
+                if (array_key_exists($clave_sesion, $slot_por_sesion)) {
+                    $mejor_slot = $slot_por_sesion[$clave_sesion];
+                } else {
+                    foreach ($horarios as $bloque) {
+                        if ($bloque['dia'] !== $dia_tutoria) {
                             continue;
                         }
 
-                        $distancia = abs($candidato_inicio - $inicio_original_ts);
-                        if ($distancia < $menor_distancia) {
-                            $menor_distancia = $distancia;
-                            $mejor_slot = [
-                                'inicio' => date('H:i:s', $candidato_inicio),
-                                'fin' => date('H:i:s', $candidato_fin),
-                                'clave' => $clave_slot
-                            ];
+                        $inicio_bloque_ts = strtotime($inscripcion['fecha'] . ' ' . $bloque['inicio']);
+                        $fin_bloque_ts = strtotime($inscripcion['fecha'] . ' ' . $bloque['fin']);
+
+                        for (
+                            $candidato_inicio = $inicio_bloque_ts;
+                            $candidato_inicio + $duracion_segundos <= $fin_bloque_ts;
+                            $candidato_inicio += $duracion_segundos
+                        ) {
+                            $candidato_fin = $candidato_inicio + $duracion_segundos;
+                            $clave_slot = $inscripcion['fecha'] . '|'
+                                . date('H:i:s', $candidato_inicio) . '|'
+                                . date('H:i:s', $candidato_fin);
+
+                            if (isset($slots_ocupados[$clave_slot])) {
+                                continue;
+                            }
+
+                            $distancia = abs($candidato_inicio - $inicio_original_ts);
+                            if ($distancia < $menor_distancia) {
+                                $menor_distancia = $distancia;
+                                $mejor_slot = [
+                                    'inicio' => date('H:i:s', $candidato_inicio),
+                                    'fin' => date('H:i:s', $candidato_fin),
+                                    'clave' => $clave_slot
+                                ];
+                            }
                         }
                     }
+
+                    if ($mejor_slot !== null) {
+                        $slots_ocupados[$mejor_slot['clave']] = true;
+                    }
+                    $slot_por_sesion[$clave_sesion] = $mejor_slot;
                 }
 
                 $stmt_cerrar_notificaciones->execute([
@@ -388,7 +409,6 @@ elseif ($seccion === 'disponibilidad') {
                         . "un bloque disponible con la duración necesaria.";
                     $horario_nuevo_inscripcion = $descripcion_horario_nuevo;
                 } else {
-                    $slots_ocupados[$mejor_slot['clave']] = true;
                     $nuevo_inicio = $mejor_slot['inicio'];
                     $nuevo_fin = $mejor_slot['fin'];
 

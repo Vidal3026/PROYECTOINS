@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/Comisiones.php'; // config_app.php + calcular_desglose_pago()
+
 /**
  * Obtiene el ID de la billetera para un usuario. Si no existe, la crea.
  * @param PDO $conn Conexión a la base de datos.
@@ -64,163 +66,157 @@ function obtener_historial_movimientos($conn, $id_billetera)
 }
 
 /**
- * Procesa el pago total de una tutoría, calculando la comisión de la plataforma (10%)
- * y registrando el ingreso neto al tutor (90%).
- * * @param PDO $conn Conexión a la base de datos.
- * @param int $id_tutor ID del tutor que realizó la tutoría.
- * @param float $monto_total_pagado Monto total que el estudiante pagó por la tutoría.
- * @param string $id_solicitud Referencia del ID de la solicitud de tutoría.
- * @return bool True si ambas transacciones (ingreso y comisión) fueron exitosas, false en caso contrario.
- */
-function procesar_pago_tutoria($conn, $id_tutor, $monto_total_pagado, $id_solicitud)
-{
-    // Definición de la comisión (10%)
-    $comision_porcentaje = 0.1; // 10%
-    
-    // 1. CÁLCULO DE MONTOS
-    $comision_monto = round($monto_total_pagado * $comision_porcentaje, 2);
-    $ingreso_neto_tutor = $monto_total_pagado - $comision_monto; 
-    
-    // 2. OBTENER ID DE BILLETERA
-    // Aseguramos que la billetera del tutor exista.
-    $id_billetera_tutor = obtener_o_crear_billetera_id($conn, $id_tutor);
-    if (!$id_billetera_tutor) {
-        error_log("No se pudo obtener/crear la billetera para el tutor ID: {$id_tutor}");
-        return false;
-    }
-    
-    try {
-        $conn->beginTransaction();
-
-        // --- TRANSACCIÓN A: REGISTRO DE INGRESO NETO AL TUTOR (98%) ---
-        
-        // 1. Insertar el registro de ingreso neto en movimientos_billetera
-        $sql_ingreso_tutor = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia) 
-                              VALUES (:id_billetera, 'INGRESO', :monto, :referencia)";
-        $stmt_ingreso = $conn->prepare($sql_ingreso_tutor);
-        $stmt_ingreso->bindParam(':id_billetera', $id_billetera_tutor, PDO::PARAM_INT);
-        $stmt_ingreso->bindParam(':monto', $ingreso_neto_tutor);
-        $stmt_ingreso->bindValue(':referencia', "Pago Solicitud #{$id_solicitud} (98% Neto)");
-        $stmt_ingreso->execute();
-
-        // 2. Actualizar el saldo del tutor
-        $sql_update_saldo = "UPDATE billeteras SET saldo = saldo + :monto WHERE id = :id_billetera";
-        $stmt_saldo = $conn->prepare($sql_update_saldo);
-        $stmt_saldo->bindParam(':monto', $ingreso_neto_tutor);
-        $stmt_saldo->bindParam(':id_billetera', $id_billetera_tutor, PDO::PARAM_INT);
-        $stmt_saldo->execute();
-
-        // --- TRANSACCIÓN B: REGISTRO DE COMISIÓN DE PLATAFORMA (10%) ---
-        // Nota: Esta es una transacción de control. No afecta el saldo del tutor, 
-        // pero sí registra el egreso total del pago del estudiante como una comisión.
-        
-        $sql_comision = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia) 
-                         VALUES (:id_billetera, 'COMISION', :monto, :referencia)";
-        $stmt_comision = $conn->prepare($sql_comision);
-        $stmt_comision->bindParam(':id_billetera', $id_billetera_tutor, PDO::PARAM_INT);
-        $stmt_comision->bindParam(':monto', $comision_monto);
-        $stmt_comision->bindValue(':referencia', "Comisión Plataforma Solicitud #{$id_solicitud} (10%)");
-        $stmt_comision->execute();
-
-        $conn->commit();
-        return true;
-
-    } catch (PDOException $e) {
-        $conn->rollBack();
-        error_log("Error de BD al procesar pago de tutoría {$id_solicitud}: " . $e->getMessage());
-        return false;
-    }
-}
-
-/**
- * Procesa la transacción completa de una tutoría:
- * 1. Resta el monto total de la billetera del estudiante.
- * 2. Asigna el monto neto (90%) al tutor.
- * 3. Registra la comisión (10%) de la plataforma.
- * * @param PDO $conn Conexión a la base de datos.
- * @param int $id_estudiante ID del usuario que paga.
- * @param int $id_tutor ID del usuario que recibe.
- * @param float $monto_total_pagado Monto total de la tutoría.
+ * Procesa el pago completo de una solicitud ACEPTADA en una sola transacción:
+ * 1. Bloquea la solicitud y la billetera del estudiante (evita cobros dobles por clics simultáneos).
+ * 2. Resta el monto total al estudiante.
+ * 3. Acredita al tutor el neto (descontadas ambas comisiones).
+ * 4. Registra las dos comisiones de la plataforma (tipo COMISION).
+ * 5. Marca la solicitud como CONFIRMADA y guarda el desglose.
+ *
+ * El monto y el tutor se leen de la base de datos, nunca del formulario.
+ *
+ * @param PDO $conn Conexión a la base de datos.
+ * @param int $id_estudiante ID del estudiante que paga (dueño de la solicitud).
  * @param int $id_solicitud ID de la solicitud de tutoría.
- * @return array ['success' => bool, 'message' => string]
+ * @return array ['success' => bool, 'codigo' => string, 'message' => string]
  */
-function procesar_transaccion_tutoria($conn, $id_estudiante, $id_tutor, $monto_total_pagado, $id_solicitud)
+function procesar_transaccion_tutoria($conn, $id_estudiante, $id_solicitud)
 {
-    $comision_porcentaje = 0.1; // 10%
-    $monto_a_restar_estudiante = abs($monto_total_pagado);
-    $comision_monto = round($monto_total_pagado * $comision_porcentaje, 2);
-    $ingreso_neto_tutor = $monto_total_pagado - $comision_monto; 
+    // Las billeteras se crean antes de abrir la transacción (obtener_o_crear_billetera_id puede insertar).
+    $stmt_tutor = $conn->prepare("SELECT id_tutor FROM solicitudes_tutorias WHERE id = :id AND id_estudiante = :estudiante");
+    $stmt_tutor->execute([':id' => $id_solicitud, ':estudiante' => $id_estudiante]);
+    $id_tutor = $stmt_tutor->fetchColumn();
 
-    // --- 1. VERIFICAR FONDOS DEL ESTUDIANTE ---
-    $saldo_estudiante = obtener_saldo($conn, $id_estudiante);
-    if ($saldo_estudiante < $monto_a_restar_estudiante) {
-        return ['success' => false, 'message' => "Saldo insuficiente. Se requieren $" . number_format($monto_a_restar_estudiante, 2) . ", saldo actual $" . number_format($saldo_estudiante, 2)];
+    if (!$id_tutor) {
+        return ['success' => false, 'codigo' => 'acceso_denegado', 'message' => 'La solicitud no existe o no te pertenece.'];
     }
 
-    // --- 2. OBTENER IDs DE BILLETERA ---
     $id_billetera_estudiante = obtener_o_crear_billetera_id($conn, $id_estudiante);
-    $id_billetera_tutor = obtener_o_crear_billetera_id($conn, $id_tutor);
+    $id_billetera_tutor = obtener_o_crear_billetera_id($conn, (int) $id_tutor);
 
     if (!$id_billetera_estudiante || !$id_billetera_tutor) {
-        return ['success' => false, 'message' => 'Error al obtener las billeteras de los usuarios.'];
+        return ['success' => false, 'codigo' => 'pago_fallido_db', 'message' => 'Error al obtener las billeteras de los usuarios.'];
     }
-    
+
     try {
         $conn->beginTransaction();
 
-        $referencia_pago = "Solicitud #{$id_solicitud}";
+        // A. Bloquear la solicitud y validar su estado
+        $stmt_sol = $conn->prepare("
+            SELECT id, id_tutor, estado, precio_total
+            FROM solicitudes_tutorias
+            WHERE id = :id AND id_estudiante = :estudiante
+            FOR UPDATE
+        ");
+        $stmt_sol->execute([':id' => $id_solicitud, ':estudiante' => $id_estudiante]);
+        $solicitud = $stmt_sol->fetch(PDO::FETCH_ASSOC);
 
-        // A. EGRESO DEL ESTUDIANTE (Monto Total)
-        // 1. Registrar movimiento de egreso para el estudiante
-        $sql_egreso = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia) 
-                       VALUES (:id_b_estudiante, 'EGRESO', :monto, :referencia)";
-        $stmt_egreso = $conn->prepare($sql_egreso);
-        $stmt_egreso->bindParam(':id_b_estudiante', $id_billetera_estudiante, PDO::PARAM_INT);
-        $stmt_egreso->bindParam(':monto', $monto_a_restar_estudiante);
-        $stmt_egreso->bindValue(':referencia', "Pago {$referencia_pago}");
-        $stmt_egreso->execute();
+        if (!$solicitud) {
+            $conn->rollBack();
+            return ['success' => false, 'codigo' => 'acceso_denegado', 'message' => 'La solicitud no existe o no te pertenece.'];
+        }
+        if ($solicitud['estado'] === 'CONFIRMADA') {
+            $conn->rollBack();
+            return ['success' => false, 'codigo' => 'pago_ya_confirmado', 'message' => 'Esta solicitud ya fue pagada.'];
+        }
+        if ($solicitud['estado'] !== 'ACEPTADA') {
+            $conn->rollBack();
+            return ['success' => false, 'codigo' => 'estado_invalido', 'message' => 'La solicitud no está ACEPTADA.'];
+        }
 
-        // 2. Restar el saldo del estudiante
-        $sql_update_estudiante = "UPDATE billeteras SET saldo = saldo - :monto WHERE id = :id_billetera";
-        $stmt_update_estudiante = $conn->prepare($sql_update_estudiante);
-        $stmt_update_estudiante->bindParam(':monto', $monto_a_restar_estudiante);
-        $stmt_update_estudiante->bindParam(':id_billetera', $id_billetera_estudiante, PDO::PARAM_INT);
-        $stmt_update_estudiante->execute();
-        
-        // B. INGRESO AL TUTOR (Monto Neto 98%)
-        $sql_ingreso = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia) 
-                        VALUES (:id_b_tutor, 'INGRESO', :monto, :referencia)";
-        $stmt_ingreso = $conn->prepare($sql_ingreso);
-        $stmt_ingreso->bindParam(':id_b_tutor', $id_billetera_tutor, PDO::PARAM_INT);
-        $stmt_ingreso->bindParam(':monto', $ingreso_neto_tutor);
-        $stmt_ingreso->bindValue(':referencia', "Ingreso {$referencia_pago} (98% Neto)");
-        $stmt_ingreso->execute();
-        
-        // 2. Sumar el saldo al tutor
-        $sql_update_tutor = "UPDATE billeteras SET saldo = saldo + :monto WHERE id = :id_billetera";
-        $stmt_update_tutor = $conn->prepare($sql_update_tutor);
-        $stmt_update_tutor->bindParam(':monto', $ingreso_neto_tutor);
-        $stmt_update_tutor->bindParam(':id_billetera', $id_billetera_tutor, PDO::PARAM_INT);
-        $stmt_update_tutor->execute();
+        $desglose = calcular_desglose_pago($solicitud['precio_total']);
+        if ($desglose['monto_pagado'] <= 0) {
+            $conn->rollBack();
+            return ['success' => false, 'codigo' => 'monto_invalido', 'message' => 'El monto de la tutoría no es válido.'];
+        }
 
-        // C. REGISTRO DE COMISIÓN (Plataforma 10%)
-        $sql_comision = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia) 
-                         VALUES (:id_b_tutor, 'COMISION', :monto, :referencia)";
-        $stmt_comision = $conn->prepare($sql_comision);
-        // Usamos la billetera del tutor solo como referencia para la auditoría, ya que esta comisión no afecta su saldo.
-        // Si tienes una billetera para la plataforma, deberías usar su ID aquí.
-        $stmt_comision->bindParam(':id_b_tutor', $id_billetera_tutor, PDO::PARAM_INT); 
-        $stmt_comision->bindParam(':monto', $comision_monto);
-        $stmt_comision->bindValue(':referencia', "Comisión Plataforma {$referencia_pago} (10%)");
-        $stmt_comision->execute();
+        // B. Bloquear la billetera del estudiante y verificar fondos
+        $stmt_saldo = $conn->prepare("SELECT saldo FROM billeteras WHERE id = :id FOR UPDATE");
+        $stmt_saldo->execute([':id' => $id_billetera_estudiante]);
+        $saldo_estudiante = (float) $stmt_saldo->fetchColumn();
+
+        if ($saldo_estudiante < $desglose['monto_pagado']) {
+            $conn->rollBack();
+            return [
+                'success' => false,
+                'codigo' => 'pago_fallido',
+                'message' => "Saldo insuficiente. Se requieren $" . number_format($desglose['monto_pagado'], 2)
+                    . ", saldo actual $" . number_format($saldo_estudiante, 2)
+            ];
+        }
+
+        $sql_movimiento = "INSERT INTO movimientos_billetera (id_billetera, tipo, monto, referencia)
+                           VALUES (:id_billetera, :tipo, :monto, :referencia)";
+        $stmt_mov = $conn->prepare($sql_movimiento);
+        $stmt_ajuste = $conn->prepare("UPDATE billeteras SET saldo = saldo + :monto WHERE id = :id_billetera");
+
+        $referencia = "Solicitud #{$id_solicitud}";
+        $pct_est = rtrim(rtrim(number_format($desglose['porcentaje_estudiante'], 2), '0'), '.');
+        $pct_tut = rtrim(rtrim(number_format($desglose['porcentaje_tutor'], 2), '0'), '.');
+
+        // C. Egreso del estudiante (monto total)
+        $stmt_mov->execute([
+            ':id_billetera' => $id_billetera_estudiante,
+            ':tipo' => 'EGRESO',
+            ':monto' => $desglose['monto_pagado'],
+            ':referencia' => "Pago {$referencia} (incluye tarifa de servicio {$pct_est}%)"
+        ]);
+        $stmt_ajuste->execute([':monto' => -$desglose['monto_pagado'], ':id_billetera' => $id_billetera_estudiante]);
+
+        // D. Ingreso neto al tutor
+        $stmt_mov->execute([
+            ':id_billetera' => $id_billetera_tutor,
+            ':tipo' => 'INGRESO',
+            ':monto' => $desglose['neto_tutor'],
+            ':referencia' => "Ingreso {$referencia} (neto tras comisiones)"
+        ]);
+        $stmt_ajuste->execute([':monto' => $desglose['neto_tutor'], ':id_billetera' => $id_billetera_tutor]);
+
+        // E. Comisiones de la plataforma. Se registran en la billetera del tutor solo como
+        //    auditoría (no afectan su saldo); los reportes del admin suman los movimientos COMISION.
+        $stmt_mov->execute([
+            ':id_billetera' => $id_billetera_tutor,
+            ':tipo' => 'COMISION',
+            ':monto' => $desglose['comision_estudiante'],
+            ':referencia' => "Comisión Plataforma (tarifa de servicio {$pct_est}%) {$referencia}"
+        ]);
+        $stmt_mov->execute([
+            ':id_billetera' => $id_billetera_tutor,
+            ':tipo' => 'COMISION',
+            ':monto' => $desglose['comision_tutor'],
+            ':referencia' => "Comisión Plataforma (comisión de tutor {$pct_tut}%) {$referencia}"
+        ]);
+
+        // F. Confirmar la solicitud y guardar el desglose
+        $stmt_conf = $conn->prepare("
+            UPDATE solicitudes_tutorias
+            SET estado = 'CONFIRMADA',
+                fecha_pago = NOW(),
+                comision_estudiante = :comision_estudiante,
+                comision_tutor = :comision_tutor,
+                monto_neto_tutor = :neto_tutor
+            WHERE id = :id
+        ");
+        $stmt_conf->execute([
+            ':comision_estudiante' => $desglose['comision_estudiante'],
+            ':comision_tutor' => $desglose['comision_tutor'],
+            ':neto_tutor' => $desglose['neto_tutor'],
+            ':id' => $id_solicitud
+        ]);
 
         $conn->commit();
-        return ['success' => true, 'message' => "Transacción completada con éxito. Tutor recibió $" . number_format($ingreso_neto_tutor, 2)];
+        return [
+            'success' => true,
+            'codigo' => 'pago_confirmado',
+            'message' => "Transacción completada. Tutor recibió $" . number_format($desglose['neto_tutor'], 2)
+        ];
 
     } catch (PDOException $e) {
-        $conn->rollBack();
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
         error_log("Error fatal en transacción de tutoría {$id_solicitud}: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Error de base de datos durante la transacción.'];
+        return ['success' => false, 'codigo' => 'pago_fallido_db', 'message' => 'Error de base de datos durante la transacción.'];
     }
 }
 
@@ -328,5 +324,67 @@ function acreditar_saldo_y_log(PDO $conn, int $user_id, float $monto, string $re
     // ********* GESTIÓN DE TRANSACCIÓN ELIMINADA *********
     
     // Ya no hay catch aquí, cualquier error será capturado por el script principal
+}
+
+/**
+ * Confirma una recarga pagada con PayPal y acredita el saldo al estudiante.
+ * Es idempotente: si la recarga ya estaba COMPLETADA (por ejemplo, llegó primero el webhook
+ * y después la captura desde el navegador), no vuelve a acreditar.
+ *
+ * @param PDO $conn Conexión a la base de datos.
+ * @param string $referencia Referencia propia de la recarga (custom_id en PayPal; columna recargas_estudiante.referencia).
+ * @param string $id_captura ID de la captura en PayPal.
+ * @param float $monto_pagado Monto capturado según PayPal.
+ * @return array ['success' => bool, 'ya_procesada' => bool, 'message' => string]
+ */
+function confirmar_recarga_pagada(PDO $conn, string $referencia, string $id_captura, float $monto_pagado)
+{
+    try {
+        $conn->beginTransaction();
+
+        $stmt = $conn->prepare("
+            SELECT id, id_estudiante, monto, estado
+            FROM recargas_estudiante
+            WHERE referencia = :referencia
+            FOR UPDATE
+        ");
+        $stmt->execute([':referencia' => $referencia]);
+        $recarga = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$recarga) {
+            $conn->rollBack();
+            return ['success' => false, 'ya_procesada' => false, 'message' => 'La recarga no existe.'];
+        }
+
+        if ($recarga['estado'] === 'COMPLETADO') {
+            $conn->rollBack();
+            return ['success' => true, 'ya_procesada' => true, 'message' => 'La recarga ya había sido acreditada.'];
+        }
+
+        if (abs((float) $recarga['monto'] - $monto_pagado) > 0.009) {
+            $conn->rollBack();
+            error_log("Recarga {$referencia}: monto PayPal ({$monto_pagado}) distinto al registrado ({$recarga['monto']}).");
+            return ['success' => false, 'ya_procesada' => false, 'message' => 'El monto pagado no coincide con la recarga.'];
+        }
+
+        $stmt_upd = $conn->prepare("
+            UPDATE recargas_estudiante
+            SET estado = 'COMPLETADO', fecha_confirmacion = NOW(), paypal_capture_id = :captura
+            WHERE id = :id
+        ");
+        $stmt_upd->execute([':captura' => $id_captura, ':id' => $recarga['id']]);
+
+        acreditar_saldo_y_log($conn, (int) $recarga['id_estudiante'], (float) $recarga['monto'], "Recarga PayPal ({$referencia})");
+
+        $conn->commit();
+        return ['success' => true, 'ya_procesada' => false, 'message' => 'Recarga acreditada.'];
+
+    } catch (Exception $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        error_log("Error al confirmar recarga PayPal {$referencia}: " . $e->getMessage());
+        return ['success' => false, 'ya_procesada' => false, 'message' => 'Error de base de datos al acreditar la recarga.'];
+    }
 }
 ?>

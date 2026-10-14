@@ -1,4 +1,7 @@
 <?php
+// Comisiones, cupos y credenciales de PayPal (disponibles en todas las páginas)
+require_once __DIR__ . '/Comisiones.php';
+
 // Datos de conexión a la base de datos
 $host = "localhost";
 $usuario = "root"; // usuario de MySQL

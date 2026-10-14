@@ -27,7 +27,7 @@ $sql = "
             THEN COALESCE(d.hora_fin, s.hora_fin)
             ELSE s.hora_fin
         END AS hora_fin,
-        s.duracion, s.precio_total, s.estado, s.fecha_pago,
+        s.duracion, s.precio_total, s.estado, s.fecha_pago, s.motivo_rechazo,
         m.nombre_materia AS materia,
         t.nombre AS nombre_tutor, t.apellido AS apellido_tutor
     FROM solicitudes_tutorias s
@@ -111,7 +111,7 @@ try {
                             case 'pago_fallido':
                                 $alert_type = 'danger';
                                 // 🛑 Usa el mensaje específico de la función Wallet
-                                $alert_message = "❌ Transacción Fallida: {$message}. Por favor, recarga tu billetera e inténtalo de nuevo.";
+                                $alert_message = "Transacción Fallida: {$message}. Por favor, recarga tu billetera e inténtalo de nuevo.";
                                 break;
                             case 'no_solicitud_id':
                                 $alert_type = 'warning';
@@ -134,7 +134,7 @@ try {
                         switch ($success_code) {
                             case 'pago_confirmado':
                                 $alert_type = 'success';
-                                $alert_message = "✅ ¡Pago Confirmado! Tu solicitud ha sido marcada como CONFIRMADA. ¡Prepara tu clase!";
+                                $alert_message = "¡Pago Confirmado! Tu solicitud ha sido marcada como CONFIRMADA. ¡Prepara tu clase!";
                                 break;
                             case 'pago_ya_confirmado':
                                 $alert_type = 'info';
@@ -154,6 +154,16 @@ try {
                             </div>
                         </div>
                     <?php endif; ?>
+                    <p class="mb-3">
+                        <a class="small" data-bs-toggle="collapse" href="#infoComisiones" role="button"
+                            aria-expanded="false" aria-controls="infoComisiones">
+                            <i class="fas fa-percent"></i> ¿Qué incluye el precio de una tutoría?
+                        </a>
+                    </p>
+                    <div class="collapse" id="infoComisiones">
+                        <?php render_info_comisiones('estudiante'); ?>
+                    </div>
+
                     <div class="card mb-4">
                         <div class="card-header">
                             <i class="fas fa-table me-1"></i>
@@ -165,7 +175,7 @@ try {
                             // 4. MOSTRAR MENSAJE DE ÉXITO (Si viene de procesar_agendamiento.php)
                             if (isset($_GET['success']) && $_GET['success'] == 'reserva_enviada'): ?>
                                 <div class="alert alert-success alert-dismissible fade show" role="alert">
-                                    ✅ **¡Solicitud Enviada!** Tu petición de tutoría ha sido registrada. Está en estado
+                                    **¡Solicitud Enviada!** Tu petición de tutoría ha sido registrada. Está en estado
                                     **PENDIENTE** de confirmación por el tutor.
                                     <button type="button" class="btn-close" data-bs-dismiss="alert"
                                         aria-label="Close"></button>
@@ -236,11 +246,21 @@ try {
                                                                     class="btn btn-sm btn-info text-white">
                                                                     <i class="fas fa-credit-card"></i> Pagar Ahora
                                                                 </a>
+                                                                <?php $desglose = calcular_desglose_pago($solicitud['precio_total']); ?>
                                                                 <div class="small text-muted mt-1">El tutor aceptó. Paga para
-                                                                    confirmar.</div>
+                                                                    confirmar.<br>
+                                                                    Incluye tarifa de servicio
+                                                                    (<?= porcentaje_comision(COMISION_ESTUDIANTE) ?>%):
+                                                                    $<?= number_format($desglose['comision_estudiante'], 2) ?>.</div>
                                                             </div>
                                                         <?php elseif ($estado === 'CANCELADA'): ?>
                                                             <div class="small text-danger mt-1">Rechazada por el tutor.</div>
+                                                            <?php if (!empty($solicitud['motivo_rechazo'])): ?>
+                                                                <div class="small border-start border-danger border-3 ps-2 mt-1 text-body">
+                                                                    <strong>Motivo:</strong>
+                                                                    <?= nl2br(htmlspecialchars($solicitud['motivo_rechazo'])) ?>
+                                                                </div>
+                                                            <?php endif; ?>
                                                         <?php endif; ?>
                                                     </td>
 

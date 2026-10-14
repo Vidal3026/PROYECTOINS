@@ -22,7 +22,7 @@ if ($solicitud_id === 0) {
 $sql = "
     SELECT
         s.id, s.fecha, s.hora_inicio, s.duracion, s.precio_total, s.fecha_pago,
-        s.estado,
+        s.estado, s.comision_estudiante,
         m.nombre_materia AS materia,
         t.nombre AS nombre_tutor, t.apellido AS apellido_tutor,
         e.nombre AS nombre_estudiante, e.apellido AS apellido_estudiante
@@ -139,6 +139,12 @@ $nombre_estudiante = htmlspecialchars($recibo['nombre_estudiante'] . ' ' . $reci
                 <div class="col-md-6 text-md-end">
                     <h5>MONTO TOTAL</h5>
                     <h1 class="text-success display-4">$<?= number_format($recibo['precio_total'], 2) ?></h1>
+                    <?php if ($recibo['comision_estudiante'] !== null): ?>
+                        <p class="small text-muted mb-0">
+                            Incluye tarifa de servicio de la plataforma:
+                            $<?= number_format($recibo['comision_estudiante'], 2) ?>
+                        </p>
+                    <?php endif; ?>
                 </div>
             </div>
 

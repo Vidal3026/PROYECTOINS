@@ -195,6 +195,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         <input type="text" class="form-control" name="universidad" id="universidad"
                           placeholder="Ej. Universidad Nacional">
                       </div>
+                      <div class="col-12">
+                        <div class="alert alert-info small mb-0">
+                          <strong>Comisiones:</strong> el precio de cada tutoría ya incluye una tarifa de servicio
+                          del <?= porcentaje_comision(COMISION_ESTUDIANTE) ?>% para la plataforma. No se cobran cargos adicionales.
+                        </div>
+                      </div>
                     </div>
 
                     <!-- Campos extras para Tutores -->
@@ -217,6 +223,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         <label for="descripcion" class="form-label">Descripción / Experiencia</label>
                         <textarea class="form-control" name="descripcion" id="descripcion" rows="3"
                           placeholder="Breve presentación y experiencia"></textarea>
+                      </div>
+                      <div class="col-12">
+                        <?php $ejemplo = calcular_desglose_pago(20); ?>
+                        <div class="alert alert-info small mb-0">
+                          <strong>Comisiones:</strong> por cada tutoría pagada, TutoLink descuenta una tarifa de servicio
+                          del <?= porcentaje_comision(COMISION_ESTUDIANTE) ?>% sobre el precio de la tutoría y una comisión de tutor
+                          del <?= porcentaje_comision(COMISION_TUTOR) ?>% sobre lo que te corresponde.
+                          Ejemplo: en una tutoría de $<?= number_format($ejemplo['monto_pagado'], 2) ?> recibes
+                          $<?= number_format($ejemplo['neto_tutor'], 2) ?>.
+                        </div>
                       </div>
                     </div>
 
