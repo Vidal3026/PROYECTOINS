@@ -126,9 +126,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                   </div>
                 </div>
               </div>
-              <form class="row g-3" action="registro.php" method="POST">
+              <form class="row g-3" action="Registro.php" method="POST">
                 <div class="row gy-3 gy-md-4 overflow-hidden">
-                  <form class="row g-3" action="registro.php" method="POST">
                     <!-- Nombre -->
                     <div class="col-md-6">
                       <label for="firstName" class="form-label">Nombre<span class="text-danger">*</span></label>
