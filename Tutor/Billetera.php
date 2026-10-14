@@ -16,6 +16,17 @@ $saldo_actual = obtener_saldo($conn, $id_tutor);
 $billetera_id = obtener_o_crear_billetera_id($conn, $id_tutor);
 $movimientos = obtener_historial_movimientos($conn, $billetera_id);
 
+// Totales para la transparencia de comisiones: lo que el tutor ha recibido y lo que retuvo la plataforma
+$stmt_totales = $conn->prepare("
+    SELECT
+        COALESCE(SUM(CASE WHEN tipo = 'INGRESO' AND referencia LIKE 'Ingreso Solicitud%' THEN monto END), 0) AS ingresos_netos,
+        COALESCE(SUM(CASE WHEN tipo = 'COMISION' THEN monto END), 0) AS comisiones
+    FROM movimientos_billetera
+    WHERE id_billetera = :id_billetera
+");
+$stmt_totales->execute([':id_billetera' => $billetera_id]);
+$totales = $stmt_totales->fetch(PDO::FETCH_ASSOC);
+
 // ==============================================
 // MANEJO DE ALERTAS (Éxito y Error)
 // ==============================================
@@ -29,7 +40,7 @@ if (isset($_GET['error'])) {
     switch ($error_code) {
         case 'saldo_insuficiente':
             $alert_type = 'danger';
-            $alert_message = "❌ Error de Retiro: {$message}. No puedes solicitar un monto mayor a tu saldo disponible.";
+            $alert_message = "Error de Retiro: {$message}. No puedes solicitar un monto mayor a tu saldo disponible.";
             break;
         case 'campos_incompletos':
             $alert_type = 'warning';
@@ -50,7 +61,7 @@ if (isset($_GET['error'])) {
     switch ($success_code) {
         case 'retiro_pendiente':
             $alert_type = 'info';
-            $alert_message = "✅ Solicitud Enviada. Tu solicitud de retiro está en estado PENDIENTE y será revisada por el administrador en las próximas 48 horas.";
+            $alert_message = "Solicitud Enviada. Tu solicitud de retiro está en estado PENDIENTE y será revisada por el administrador en las próximas 48 horas.";
             break;
     }
 }
@@ -104,7 +115,29 @@ if (isset($_GET['error'])) {
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-4 mb-4">
+                            <div class="card border-success shadow-sm h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">Ingresos netos por tutorías</h6>
+                                    <h2 class="text-success">$ <?= number_format($totales['ingresos_netos'], 2) ?></h2>
+                                    <p class="small text-muted mb-0">Lo que se ha acreditado a tu saldo después de comisiones.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-4">
+                            <div class="card border-warning shadow-sm h-100">
+                                <div class="card-body">
+                                    <h6 class="card-title text-muted">Comisiones retenidas por TutoLink</h6>
+                                    <h2 class="text-warning">$ <?= number_format($totales['comisiones'], 2) ?></h2>
+                                    <p class="small text-muted mb-0">Tarifa de servicio (<?= porcentaje_comision(COMISION_ESTUDIANTE) ?>%) +
+                                        comisión de tutor (<?= porcentaje_comision(COMISION_TUTOR) ?>%) de tus tutorías pagadas.
+                                        No se descuentan de tu saldo actual.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <?php render_info_comisiones('tutor'); ?>
 
                     <div class="card shadow mt-4">
                         <div class="card-header bg-light">
@@ -130,8 +163,11 @@ if (isset($_GET['error'])) {
                                             <tr>
                                                 <td><?php echo date('Y-m-d H:i', strtotime($mov['fecha_movimiento'])); ?></td>
                                                 <td>
-                                                    <span
-                                                        class="badge bg-<?php echo $mov['tipo'] === 'INGRESO' ? 'success' : 'danger'; ?> text-white">
+                                                    <?php
+                                                    $color_tipo = ['INGRESO' => 'success', 'COMISION' => 'warning text-dark'][$mov['tipo']] ?? 'danger';
+                                                    ?>
+                                                    <span class="badge bg-<?php echo $color_tipo; ?>"
+                                                        <?php if ($mov['tipo'] === 'COMISION'): ?>title="Retenido por la plataforma; no afecta tu saldo"<?php endif; ?>>
                                                         <?php echo htmlspecialchars($mov['tipo']); ?>
                                                     </span>
                                                 </td>

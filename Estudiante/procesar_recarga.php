@@ -2,11 +2,25 @@
 session_start();
 // Asegúrate de que db.php contiene $conn y Wallet.php contiene las funciones sueltas
 include '../Includes/db.php'; 
-include '../Includes/Wallet.php'; 
+include '../Includes/Wallet.php';
+include '../Includes/PayPal.php';
+include '../Includes/Seguridad.php';
+
+// Con PayPal configurado, la única forma de recargar es pagando (botón de PayPal en la Billetera).
+if (paypal_configurado()) {
+    header("Location: Billetera.php?error=recarga_fallida&msg=" . urlencode('Usa el pago con PayPal para recargar.'));
+    exit();
+}
 
 // 1. VERIFICACIÓN DE SESIÓN (ESTUDIANTE)
-if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'estudiante') { 
+if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'estudiante') {
     header("Location: ../Login.php");
+    exit();
+}
+
+// Solo se acepta el formulario de la propia Billetera (protección CSRF)
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !csrf_valido(csrf_recibido())) {
+    header("Location: Billetera.php?error=recarga_fallida&msg=" . urlencode('La página expiró. Vuelve a intentarlo.'));
     exit();
 }
 
@@ -57,7 +71,7 @@ try {
         $conn->rollBack();
     }
     error_log("Error de BD al procesar recarga: " . $e->getMessage());
-    $msg = "Error de base de datos. El pago falló. Detalle: " . $e->getMessage();
+    $msg = "Error de base de datos. El pago falló. Inténtalo más tarde.";
     header("Location: Billetera.php?error=db_error&msg=" . urlencode($msg));
     exit();
     

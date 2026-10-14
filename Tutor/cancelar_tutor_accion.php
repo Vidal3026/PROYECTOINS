@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['solicitud_id'])) {
         
         if ($stmt->execute() && $stmt->rowCount() > 0) {
             // Éxito
-            $_SESSION['mensaje'] = "🚫 Tutoría #$solicitud_id **cancelada** exitosamente. El estudiante ha sido notificado.";
+            $_SESSION['mensaje'] = "Tutoría #$solicitud_id **cancelada** exitosamente. El estudiante ha sido notificado.";
             $_SESSION['tipo_mensaje'] = "success"; 
             
             // NOTA: Aquí iría la lógica adicional para manejar el reembolso/crédito
@@ -44,17 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['solicitud_id'])) {
             
         } else {
             // Advertencia (ya cancelada, completada, o error de ID/permisos)
-            $_SESSION['mensaje'] = "⚠️ Error: La tutoría #$solicitud_id no pudo ser cancelada. Es posible que ya estuviera cerrada/cancelada o que no tenga permiso.";
+            $_SESSION['mensaje'] = "Error: La tutoría #$solicitud_id no pudo ser cancelada. Es posible que ya estuviera cerrada/cancelada o que no tenga permiso.";
             $_SESSION['tipo_mensaje'] = "warning";
         }
     } catch (PDOException $e) {
         error_log("Error al cancelar tutoría: " . $e->getMessage());
-        $_SESSION['mensaje'] = "❌ Error de base de datos al intentar cancelar la tutoría.";
+        $_SESSION['mensaje'] = "Error de base de datos al intentar cancelar la tutoría.";
         $_SESSION['tipo_mensaje'] = "danger";
     }
 
 } else {
-    $_SESSION['mensaje'] = "❌ Solicitud no válida.";
+    $_SESSION['mensaje'] = "Solicitud no válida.";
     $_SESSION['tipo_mensaje'] = "danger";
 }
 

@@ -54,11 +54,11 @@ $alert_type = '';
 if (isset($_GET['success'])) {
     $msg = isset($_GET['msg']) ? urldecode($_GET['msg']) : 'Acción realizada con éxito.';
     $alert_type = 'success';
-    $alert_message = "✅ Éxito: {$msg}";
+    $alert_message = "Éxito: {$msg}";
 } elseif (isset($_GET['error'])) {
     $msg = isset($_GET['msg']) ? urldecode($_GET['msg']) : 'Ocurrió un error inesperado.';
     $alert_type = 'danger';
-    $alert_message = "❌ Error: {$msg}";
+    $alert_message = "Error: {$msg}";
 }
 
 ?>
@@ -226,7 +226,7 @@ if (isset($_GET['success'])) {
                         <p>Estás a punto de confirmar el pago para el tutor <strong id="aprobarTutorSpan"></strong> por el monto de <strong id="aprobarMontoSpan"></strong>.</p>
                         
                         <div class="alert alert-danger">
-                            🛑 **ADVERTENCIA CRÍTICA:** Al confirmar, el saldo del tutor se **descontará inmediatamente**. Asegúrate de haber realizado el pago antes de continuar.
+                            **ADVERTENCIA CRÍTICA:** Al confirmar, el saldo del tutor se **descontará inmediatamente**. Asegúrate de haber realizado el pago antes de continuar.
                         </div>
                     </div>
                     <div class="modal-footer">

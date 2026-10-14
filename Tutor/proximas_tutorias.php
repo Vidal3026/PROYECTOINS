@@ -244,7 +244,7 @@ try {
                                 </div>
                             <?php else: ?>
                                 <div class="alert alert-info text-center">
-                                    🗓️ No tienes tutorías confirmadas programadas ni historial reciente.
+                                    No tienes tutorías confirmadas programadas ni historial reciente.
                                 </div>
                             <?php endif; ?>
                         </div>

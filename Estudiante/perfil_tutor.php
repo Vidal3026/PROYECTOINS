@@ -150,6 +150,7 @@ try {
         SELECT 
             ot.id AS oferta_id,
             ot.precio_hora,
+            ot.cupo_maximo,
             m.nombre_materia
         FROM 
             ofertas_tutorias ot
@@ -206,6 +207,26 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
                             <?= htmlspecialchars($tutor_detalle['nombre_tutor'] . ' ' . $tutor_detalle['apellido_tutor']) ?>
                         </li>
                     </ol>
+
+                    <?php
+                    $errores_reserva = [
+                        'datos_incompletos' => 'Faltan datos de la reserva. Vuelve a intentarlo.',
+                        'oferta_invalida' => 'La materia seleccionada ya no está disponible con este tutor.',
+                        'fecha_pasada' => 'No puedes reservar un horario que ya pasó.',
+                        'fuera_rango_disponibilidad' => 'La duración elegida sobrepasa la disponibilidad del tutor en ese bloque.',
+                        'horario_ocupado' => 'El tutor ya tiene otra tutoría en ese horario.',
+                        'ya_inscrito' => 'Ya tienes una solicitud para esta misma tutoría.',
+                        'cupo_lleno' => 'El cupo de esta tutoría ya está lleno. Elige otro horario.',
+                        'db_fail' => 'Ocurrió un error al guardar tu solicitud. Inténtalo más tarde.',
+                    ];
+                    $error_reserva = $_GET['error'] ?? '';
+                    ?>
+                    <?php if (isset($errores_reserva[$error_reserva])): ?>
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            <?= $errores_reserva[$error_reserva] ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    <?php endif; ?>
 
                     <div class="row">
 
@@ -323,7 +344,8 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
                                                         data-precio="<?= htmlspecialchars($oferta['precio_hora']) ?>"
                                                         data-nombre="<?= htmlspecialchars($oferta['nombre_materia']) ?>">
                                                         <?= htmlspecialchars($oferta['nombre_materia']) ?>
-                                                        ($<?= number_format($oferta['precio_hora'], 2) ?>/h)
+                                                        ($<?= number_format($oferta['precio_hora'], 2) ?>/h ·
+                                                        <?= (int) $oferta['cupo_maximo'] > 1 ? 'grupal, hasta ' . (int) $oferta['cupo_maximo'] . ' estudiantes' : 'individual' ?>)
                                                     </option>
                                                 <?php endforeach; ?>
                                             <?php else: ?>
@@ -333,6 +355,10 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
                                         <small class="form-text text-muted" id="info_precio_materia">
                                             *Selecciona la materia para ver los precios y habilitar la reserva.
                                         </small>
+                                        <div class="small text-muted mt-1">
+                                            <i class="fas fa-info-circle"></i> Los precios ya incluyen la tarifa de
+                                            servicio de TutoLink (<?= porcentaje_comision(COMISION_ESTUDIANTE) ?>%).
+                                        </div>
                                     </div>
 
                                     <label class="form-label fw-bold mt-3">2. Selecciona un Bloque Horario:</label>
@@ -442,6 +468,11 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
                             </li>
                             <li class="list-group-item">**Precio Total:** <strong id="modal_precio_final"
                                     class="text-success"></strong></li>
+                            <li class="list-group-item small text-muted">
+                                <div class="d-flex justify-content-between"><span>Incluye tarifa de servicio TutoLink
+                                        (<?= porcentaje_comision(COMISION_ESTUDIANTE) ?>%)</span><span id="modal_comision_estudiante"></span></div>
+                                <div>Sin cargos adicionales.</div>
+                            </li>
                         </ul>
 
                         <p class="alert alert-info small mt-3">
@@ -450,7 +481,6 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
 
                         <input type="hidden" name="tutor_id" value="<?= $tutor_id ?>">
                         <input type="hidden" name="oferta_id" id="input_oferta_id">
-                        <input type="hidden" name="precio_total_calculado" id="input_precio_total_calculado">
 
                         <input type="hidden" name="fecha" id="input_fecha_solicitada">
                         <input type="hidden" name="hora" id="input_hora_inicio">
@@ -463,6 +493,7 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
             </div>
         </div>
     </div>
+    <?php script_comisiones('estudiante'); ?>
     <script>
         // Mapeo para convertir el día de la semana (LUNES, MARTES...) a texto en español para el Modal
         const dias_espanol = {
@@ -510,8 +541,10 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
 
             // 1. Recálculo del Precio Total
             const precioTotal = precio_hora_base * duracion;
+            // Solo informativo: el servidor recalcula el precio con la tarifa guardada del tutor.
             document.getElementById('modal_precio_final').textContent = `$${precioTotal.toFixed(2)} USD`;
-            document.getElementById('input_precio_total_calculado').value = precioTotal.toFixed(2);
+            const desglose = desgloseTutolink(precioTotal);
+            document.getElementById('modal_comision_estudiante').textContent = `$${desglose.comisionEstudiante.toFixed(2)}`;
 
             // 2. Recálculo de la Hora de Fin
             if (hora_inicio_seleccionada) {

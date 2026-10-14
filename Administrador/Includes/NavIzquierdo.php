@@ -38,6 +38,10 @@
                 <div class="sb-nav-link-icon"><i class="fa-solid fa-inbox"></i></div>
                 Solicitudes de Retiros
             </a>
+            <a class="nav-link" href="Pagos.php">
+                <div class="sb-nav-link-icon"><i class="fa-brands fa-paypal"></i></div>
+                Pagos y Comisiones
+            </a>
 
             <!--Estadística-->
             <div class="sb-sidenav-menu-heading">Estadísticas</div>

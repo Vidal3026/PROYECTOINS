@@ -147,7 +147,7 @@ try {
                                 </div>
                             <?php else: ?>
                                 <div class="alert alert-info text-center">
-                                    📂 Tu historial de tutorías está vacío.
+                                    Tu historial de tutorías está vacío.
                                 </div>
                             <?php endif; ?>
                         </div>

@@ -34,22 +34,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['solicitud_id'])) {
         
         if ($stmt->execute() && $stmt->rowCount() > 0) {
             // Éxito
-            $_SESSION['mensaje'] = "✅ Tutoría #$solicitud_id marcada como **COMPLETADA**. El estudiante puede ahora calificar.";
+            $_SESSION['mensaje'] = "Tutoría #$solicitud_id marcada como **COMPLETADA**. El estudiante puede ahora calificar.";
             $_SESSION['tipo_mensaje'] = "success"; 
         } else {
             // Advertencia (ej. ya estaba cerrada o el ID no coincide)
-            $_SESSION['mensaje'] = "⚠️ Advertencia: La tutoría #$solicitud_id no pudo ser finalizada. (Verifique el estado o los IDs).";
+            $_SESSION['mensaje'] = "Advertencia: La tutoría #$solicitud_id no pudo ser finalizada. (Verifique el estado o los IDs).";
             $_SESSION['tipo_mensaje'] = "warning";
         }
     } catch (PDOException $e) {
         // Error de la base de datos
         error_log("Error al cerrar tutoría: " . $e->getMessage());
-        $_SESSION['mensaje'] = "❌ Error de base de datos al intentar finalizar la tutoría.";
+        $_SESSION['mensaje'] = "Error de base de datos al intentar finalizar la tutoría.";
         $_SESSION['tipo_mensaje'] = "danger";
     }
 
 } else {
-    $_SESSION['mensaje'] = "❌ Acceso no autorizado o solicitud no válida.";
+    $_SESSION['mensaje'] = "Acceso no autorizado o solicitud no válida.";
     $_SESSION['tipo_mensaje'] = "danger";
 }
 
