@@ -99,12 +99,24 @@ $sql = "
         m.nombre_materia AS materia,
         t.nombre AS nombre_tutor, t.apellido AS apellido_tutor,
         c.id AS calificacion_existente_id,
-        c.calificacion AS calificacion_valor 
+        c.calificacion AS calificacion_valor,
+            CASE WHEN nh.id IS NOT NULL THEN 1 ELSE 0 END AS horario_modificado,
+            nh.mensaje AS mensaje_cambio_horario,
+            nh.horario_nuevo,
+            nh.creada_en AS fecha_cambio_horario 
     FROM solicitudes_tutorias s
     JOIN ofertas_tutorias o ON s.id_oferta = o.id
     JOIN usuarios t ON s.id_tutor = t.id 
     JOIN materias m ON o.id_materia = m.id 
-    LEFT JOIN calificaciones_tutorias c ON s.id = c.id_solicitud 
+    LEFT JOIN calificaciones_tutorias c ON s.id = c.id_solicitud
+    LEFT JOIN notificaciones_horario nh
+        ON nh.id = (
+            SELECT MAX(nh2.id)
+            FROM notificaciones_horario nh2
+            WHERE nh2.id_solicitud = s.id
+              AND nh2.id_estudiante = s.id_estudiante
+              AND nh2.leida = 0
+        ) 
     WHERE s.id_estudiante = :estudiante_id
     AND s.estado IN ('CONFIRMADA', 'COMPLETADA') 
     ORDER BY s.fecha DESC, s.hora_inicio DESC;
@@ -115,9 +127,13 @@ try {
     $stmt->bindParam(':estudiante_id', $id_usuario, PDO::PARAM_INT);
     $stmt->execute();
     $tutorias = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $total_horarios_modificados = count(array_filter($tutorias, function ($tutoria) {
+        return !empty($tutoria['horario_modificado']);
+    }));
 } catch (PDOException $e) {
     error_log("Error al cargar tutorías confirmadas: " . $e->getMessage());
     $tutorias = [];
+    $total_horarios_modificados = 0;
     $error_db = "Error al cargar el historial de tutorías.";
 }
 
@@ -166,7 +182,19 @@ unset($_SESSION['tipo_mensaje']);
                         </div>
                     <?php endif; ?>
 
-                    <div class="card mb-4">
+                    <?php if (($total_horarios_modificados ?? 0) > 0): ?>
+                    <div class="alert alert-warning border-warning shadow-sm" role="alert">
+                        <i class="fas fa-bell me-2"></i>
+                        <strong>Atención:</strong>
+                        El tutor modificó su disponibilidad en
+                        <?= $total_horarios_modificados === 1
+                            ? 'una tutoría que inscribiste'
+                            : $total_horarios_modificados . ' tutorías que inscribiste' ?>.
+                        Revisa las tarjetas marcadas como “Horario modificado”.
+                    </div>
+                <?php endif; ?>
+
+                <div class="card mb-4">
                         <div class="card-header">
                             <i class="fas fa-calendar-check me-1"></i>
                             Clases Pagadas y Agendadas
@@ -184,6 +212,7 @@ unset($_SESSION['tipo_mensaje']);
 
                                     <?php foreach ($tutorias as $tutoria):
                                         $estado = htmlspecialchars($tutoria['estado']);
+                                    $horario_modificado = !empty($tutoria['horario_modificado']);
                                         // Ahora es 'calificacion_existente_id' y 'calificacion_valor'
                                         $calificacion_existente_id = $tutoria['calificacion_existente_id']; 
                                         $calificacion_valor = $tutoria['calificacion_valor'];
@@ -238,7 +267,13 @@ unset($_SESSION['tipo_mensaje']);
                                         }
                                         
                                         // Lógica para el formato de duración
-                                        $duracion_horas = floatval($tutoria['duracion']);
+                                        if ($horario_modificado && !$sesion_ya_paso) {
+                                        $clase_card = 'border-start-danger';
+                                        $clase_estado = 'bg-danger';
+                                        $label_estado = 'HORARIO MODIFICADO';
+                                    }
+
+                                    $duracion_horas = floatval($tutoria['duracion']);
                                         if ($duracion_horas < 1 && $duracion_horas > 0) {
                                             $duracion_str = ($duracion_horas * 60) . ' min.';
                                         } elseif ($duracion_horas >= 1) {
@@ -248,7 +283,7 @@ unset($_SESSION['tipo_mensaje']);
                                         }
                                         ?>
 
-                                        <div class="col">
+                                        <div class="col" id="tutoria-<?= (int) $tutoria['solicitud_id'] ?>">
                                             <div class="card shadow h-100 <?= $clase_card ?> border-start-5">
 
                                                 <div
@@ -264,6 +299,16 @@ unset($_SESSION['tipo_mensaje']);
                                                 </div>
 
                                                 <div class="card-body">
+                                    <?php if ($horario_modificado && !$sesion_ya_paso): ?>
+                                        <div class="alert alert-warning py-2 small" role="alert">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>
+                                            <?= htmlspecialchars($tutoria['mensaje_cambio_horario']) ?>
+                                            <div class="mt-1">
+                                                <strong>Nuevo horario publicado:</strong>
+                                                <?= htmlspecialchars($tutoria['horario_nuevo']) ?>
+                                            </div>
+                                        </div>
+                                    <?php endif; ?>
                                                     <div class="row">
                                                         <div class="col-12 col-md-8">
                                                             <p class="text-muted small mb-1">Tutoría de:</p>

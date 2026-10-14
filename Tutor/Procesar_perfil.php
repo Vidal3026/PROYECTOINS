@@ -169,57 +169,212 @@ elseif ($seccion === 'materias') {
 }
 
 // ======================================================================
-// 6. **PROCESAR SECCIÓN DE DISPONIBILIDAD (HORARIO) - MÚLTIPLES BLOQUES**
+// 6. **PROCESAR SECCIÓN DE DISPONIBILIDAD Y NOTIFICAR INSCRIPCIONES**
 // ======================================================================
 elseif ($seccion === 'disponibilidad') {
-    // 🛑 AHORA ESPERAMOS UN ARRAY DE BLOQUES (horarios)
-    $horarios = $_POST['horarios'] ?? []; // Debería ser un array de arrays: [['dia' => 'LUNES', 'inicio' => 'HH:MM:SS', 'fin' => 'HH:MM:SS'], ...]
+    $horarios_recibidos = $_POST['horarios'] ?? [];
+    $dias_validos = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
+    $horarios = [];
+
+    foreach ($horarios_recibidos as $bloque) {
+        $dia = strtoupper(trim($bloque['dia'] ?? ''));
+        $inicio = trim($bloque['inicio'] ?? '');
+        $fin = trim($bloque['fin'] ?? '');
+
+        if (!in_array($dia, $dias_validos, true) || empty($inicio) || empty($fin)) {
+            continue;
+        }
+
+        if (strtotime($inicio) >= strtotime($fin)) {
+            redirigir('error', 'horario_invalido');
+        }
+
+        $horarios[] = [
+            'dia' => $dia,
+            'inicio' => date('H:i:s', strtotime($inicio)),
+            'fin' => date('H:i:s', strtotime($fin))
+        ];
+    }
+
+    usort($horarios, function ($a, $b) {
+        return strcmp(
+            $a['dia'] . $a['inicio'] . $a['fin'],
+            $b['dia'] . $b['inicio'] . $b['fin']
+        );
+    });
 
     try {
+        asegurarTablaNotificacionesHorario($conn);
+
+        // Guardamos el horario anterior para reconocer un cambio real.
+        $stmt_horario_anterior = $conn->prepare("
+            SELECT dia_semana AS dia, hora_inicio AS inicio, hora_fin AS fin
+            FROM disponibilidad
+            WHERE id_tutor = :tutor_id
+            ORDER BY dia_semana, hora_inicio, hora_fin
+        ");
+        $stmt_horario_anterior->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT);
+        $stmt_horario_anterior->execute();
+        $horarios_anteriores = $stmt_horario_anterior->fetchAll(PDO::FETCH_ASSOC);
+
+        usort($horarios_anteriores, function ($a, $b) {
+            return strcmp(
+                $a['dia'] . $a['inicio'] . $a['fin'],
+                $b['dia'] . $b['inicio'] . $b['fin']
+            );
+        });
+
+        $hubo_cambio = json_encode($horarios_anteriores, JSON_UNESCAPED_UNICODE)
+            !== json_encode($horarios, JSON_UNESCAPED_UNICODE);
+
         $conn->beginTransaction();
 
-        // Paso 1: Eliminar toda la disponibilidad existente (DEBE HACERSE SIEMPRE)
-        $sql_del_dispo = "DELETE FROM disponibilidad WHERE id_tutor = :tutor_id";
-        $stmt_del_dispo = $conn->prepare($sql_del_dispo);
+        $stmt_del_dispo = $conn->prepare(
+            "DELETE FROM disponibilidad WHERE id_tutor = :tutor_id"
+        );
         $stmt_del_dispo->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT);
         $stmt_del_dispo->execute();
 
-        // Paso 2: Insertar los nuevos bloques de disponibilidad
-        $dias_validos = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
-
-        $sql_ins_dispo = "INSERT INTO disponibilidad (id_tutor, dia_semana, hora_inicio, hora_fin) VALUES (:tutor_id, :dia, :inicio, :fin)";
-        $stmt_ins_dispo = $conn->prepare($sql_ins_dispo);
+        $stmt_ins_dispo = $conn->prepare("
+            INSERT INTO disponibilidad (id_tutor, dia_semana, hora_inicio, hora_fin)
+            VALUES (:tutor_id, :dia, :inicio, :fin)
+        ");
 
         foreach ($horarios as $bloque) {
-            $dia_upper = strtoupper($bloque['dia'] ?? '');
-            $inicio = $bloque['inicio'] ?? '';
-            $fin = $bloque['fin'] ?? '';
+            $stmt_ins_dispo->execute([
+                ':tutor_id' => $tutor_id,
+                ':dia' => $bloque['dia'],
+                ':inicio' => $bloque['inicio'],
+                ':fin' => $bloque['fin']
+            ]);
+        }
 
-            // Solo insertamos si el día es válido y ambas horas están presentes
-            if (in_array($dia_upper, $dias_validos) && !empty($inicio) && !empty($fin)) {
-                // Validación de que la hora de inicio sea menor a la hora de fin (ya lo hace JS, pero es buena práctica de backend)
-                if (strtotime($inicio) >= strtotime($fin)) {
-                    // Si un bloque falla, deshacemos todo
-                    $conn->rollBack();
-                    redirigir('error', 'horario_invalido');
+        if ($hubo_cambio) {
+            // La solicitud se vincula con su oferta y, por medio de ella, con la materia.
+            $stmt_inscripciones = $conn->prepare("
+                SELECT
+                    s.id AS id_solicitud,
+                    s.id_estudiante,
+                    s.fecha,
+                    s.hora_inicio,
+                    s.hora_fin,
+                    o.id_materia,
+                    m.nombre_materia AS materia
+                FROM solicitudes_tutorias s
+                INNER JOIN ofertas_tutorias o
+                    ON o.id = s.id_oferta
+                   AND o.id_tutor = s.id_tutor
+                INNER JOIN materias m ON m.id = o.id_materia
+                WHERE s.id_tutor = :tutor_id
+                  AND s.estado = 'CONFIRMADA'
+                  AND TIMESTAMP(s.fecha, s.hora_fin) >= NOW()
+            ");
+            $stmt_inscripciones->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT);
+            $stmt_inscripciones->execute();
+            $inscripciones = $stmt_inscripciones->fetchAll(PDO::FETCH_ASSOC);
+
+            $descripcion_horario_nuevo = empty($horarios)
+                ? 'Sin disponibilidad publicada'
+                : implode(', ', array_map(function ($bloque) {
+                    return $bloque['dia'] . ' '
+                        . substr($bloque['inicio'], 0, 5) . '-'
+                        . substr($bloque['fin'], 0, 5);
+                }, $horarios));
+
+            $stmt_notificacion = $conn->prepare("
+                INSERT IGNORE INTO notificaciones_horario (
+                    id_solicitud,
+                    id_estudiante,
+                    id_tutor,
+                    id_materia,
+                    fecha_tutoria,
+                    hora_anterior_inicio,
+                    hora_anterior_fin,
+                    horario_nuevo,
+                    mensaje,
+                    cambio_hash
+                ) VALUES (
+                    :id_solicitud,
+                    :id_estudiante,
+                    :id_tutor,
+                    :id_materia,
+                    :fecha_tutoria,
+                    :hora_anterior_inicio,
+                    :hora_anterior_fin,
+                    :horario_nuevo,
+                    :mensaje,
+                    :cambio_hash
+                )
+            ");
+
+            $stmt_cerrar_notificaciones = $conn->prepare("
+                UPDATE notificaciones_horario
+                SET leida = 1
+                WHERE id_solicitud = :id_solicitud
+                  AND leida = 0
+            ");
+
+            foreach ($inscripciones as $inscripcion) {
+                $numero_dia = (int) date('N', strtotime($inscripcion['fecha']));
+                $dia_tutoria = $dias_validos[$numero_dia - 1];
+                $sigue_cubierta = false;
+
+                foreach ($horarios as $bloque) {
+                    if (
+                        $bloque['dia'] === $dia_tutoria
+                        && $bloque['inicio'] <= $inscripcion['hora_inicio']
+                        && $bloque['fin'] >= $inscripcion['hora_fin']
+                    ) {
+                        $sigue_cubierta = true;
+                        break;
+                    }
                 }
 
-                $stmt_ins_dispo->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT);
-                $stmt_ins_dispo->bindParam(':dia', $dia_upper);
-                $stmt_ins_dispo->bindParam(':inicio', $inicio);
-                $stmt_ins_dispo->bindParam(':fin', $fin);
-                $stmt_ins_dispo->execute();
+                $stmt_cerrar_notificaciones->execute([
+                ':id_solicitud' => $inscripcion['id_solicitud']
+            ]);
+
+            if ($sigue_cubierta) {
+                    continue;
+                }
+
+                $fecha_legible = date('d/m/Y', strtotime($inscripcion['fecha']));
+                $hora_inicio_legible = substr($inscripcion['hora_inicio'], 0, 5);
+                $hora_fin_legible = substr($inscripcion['hora_fin'], 0, 5);
+                $mensaje = "El tutor cambió el horario de {$inscripcion['materia']}. "
+                    . "Tu inscripción del {$fecha_legible}, de {$hora_inicio_legible} "
+                    . "a {$hora_fin_legible}, ya no coincide con su nueva disponibilidad.";
+
+                $cambio_hash = hash('sha256', json_encode([
+                    'solicitud' => (int) $inscripcion['id_solicitud'],
+                    'anterior' => $horarios_anteriores,
+                    'nuevo' => $horarios,
+                'registrado_en' => microtime(true)
+                ], JSON_UNESCAPED_UNICODE));
+
+                $stmt_notificacion->execute([
+                    ':id_solicitud' => $inscripcion['id_solicitud'],
+                    ':id_estudiante' => $inscripcion['id_estudiante'],
+                    ':id_tutor' => $tutor_id,
+                    ':id_materia' => $inscripcion['id_materia'],
+                    ':fecha_tutoria' => $inscripcion['fecha'],
+                    ':hora_anterior_inicio' => $inscripcion['hora_inicio'],
+                    ':hora_anterior_fin' => $inscripcion['hora_fin'],
+                    ':horario_nuevo' => $descripcion_horario_nuevo,
+                    ':mensaje' => $mensaje,
+                    ':cambio_hash' => $cambio_hash
+                ]);
             }
         }
 
         $conn->commit();
-
-        // Éxito
         redirigir('exito', 'disponibilidad');
 
     } catch (PDOException $e) {
-        $conn->rollBack();
-        error_log("Error al actualizar disponibilidad con bloques: " . $e->getMessage());
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        error_log("Error al actualizar disponibilidad y notificar cambios: " . $e->getMessage());
         redirigir('error', 'db_disponibilidad');
     }
 }
