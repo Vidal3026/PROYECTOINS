@@ -11,7 +11,7 @@ if (!isset($_GET['tutor_id']) || !is_numeric($_GET['tutor_id'])) {
 $tutor_id = $_GET['tutor_id'];
 
 //obtener fecha php
-// --- Nueva Función PHP para obtener la fecha de la próxima ocurrencia del día ---
+// Fecha de la próxima ocurrencia de un día de la semana
 /**
  * Calcula la fecha real de la próxima ocurrencia de un día de la semana (LUNES, MARTES, etc.).
  * @param string $dayName El nombre del día de la semana en mayúsculas (LUNES, MARTES...).
@@ -303,7 +303,6 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
                                         </thead>
                                         <tbody>
                                             <?php
-                                            // Esta lógica PHP debe estar definida antes en el archivo para que funcione
                                             $dias_espanol = ['LUNES' => 'Lunes', 'MARTES' => 'Martes', 'MIÉRCOLES' => 'Miércoles', 'JUEVES' => 'Jueves', 'VIERNES' => 'Viernes', 'SÁBADO' => 'Sábado', 'DOMINGO' => 'Domingo'];
                                             foreach ($horario_semanal as $dia => $bloques):
                                                 ?>
@@ -564,8 +563,6 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
                 document.getElementById('modal_hora_fin').textContent = horaFinFormateada;
             }
 
-            // TODO Opcional: Implementar una validación aquí (o en el backend) para ver si 
-            // la hora de fin calculada sigue dentro de la disponibilidad del tutor. 
         }
 
         // -----------------------------------------------------
@@ -618,7 +615,7 @@ $ruta_imagen = !empty($tutor_detalle['perfil_imagen']) ?
             reservaModal.show();
         }
 
-        // ... mantener la función que se llama al cambiar la materia (addEventListener de materia_seleccionada) ...
+        // Al cambiar la materia se muestra su precio y se habilitan los horarios
         document.getElementById('materia_seleccionada').addEventListener('change', function () {
             const selectedOption = this.options[this.selectedIndex];
             const precio = selectedOption.getAttribute('data-precio');

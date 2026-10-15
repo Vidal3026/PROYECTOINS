@@ -3,18 +3,14 @@
 
 // 1. CONFIGURACIÓN INICIAL Y VERIFICACIÓN DE SESIÓN (Estudiante)
 include 'Includes/Nav.php'; 
-// Asegúrate de que Nav.php ya inicia session_start()
 include "../Includes/db.php"; 
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// *** IMPORTANTE: AÑADIR ESTA LÍNEA AQUÍ ***
 // Asegura que PHP use la zona horaria correcta para todos los cálculos de fecha/hora.
-// Reemplaza 'America/El_Salvador' con la zona horaria real de tu aplicación.
 date_default_timezone_set('America/El_Salvador'); 
-// ********************************************
 
 if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'estudiante') {
     header("Location: ../Login.php");

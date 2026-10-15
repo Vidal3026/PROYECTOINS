@@ -9,7 +9,7 @@ if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'tutor') {
 }
 $id_tutor = $_SESSION['id'];
 
-include "../Includes/db.php"; // Incluye tu conexión a la BD
+include "../Includes/db.php";
 
 // 2. CONSULTA DE TUTORÍAS DEL HISTORIAL (¡CONSULTA ORIGINAL RESTAURADA!)
 $sql_historial = "
@@ -41,7 +41,6 @@ try {
     $stmt->execute();
     $historial = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    // Para depuración, puedes quitar el error_log si no tienes acceso
     error_log("Error al consultar historial de tutorías: " . $e->getMessage()); 
     $historial = [];
     $error_db = "Error al cargar datos de la base de datos.";

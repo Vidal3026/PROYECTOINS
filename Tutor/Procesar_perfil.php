@@ -1,13 +1,12 @@
 <?php
 include 'Includes/Nav.php';
 
-// 🛑 Incluir la conexión a la base de datos
+// Conexión a la base de datos
 if (!isset($conn)) {
-    // Asegúrate de que esta ruta sea correcta para la carpeta Tutor/
     include '../Includes/db.php';
 }
 
-// 1. **AUTENTICACIÓN Y VARIABLES**
+// 1. AUTENTICACIÓN Y VARIABLES
 if ($usuario['rol'] !== 'tutor') {
     header('Location: ../index.php');
     exit;
@@ -15,7 +14,7 @@ if ($usuario['rol'] !== 'tutor') {
 $tutor_id = $usuario['id'];
 $seccion = $_POST['seccion'] ?? '';
 
-// 2. **DETERMINAR ANCLA DE REDIRECCIÓN**
+// 2. DETERMINAR ANCLA DE REDIRECCIÓN
 // Esta variable se usará tanto para el éxito como para el error en la URL
 $anchor_key = '';
 if ($seccion === 'perfil') {
@@ -30,7 +29,7 @@ if ($seccion === 'perfil') {
     exit;
 }
 
-// 3. **FUNCIÓN DE REDIRECCIÓN CENTRALIZADA**
+// 3. FUNCIÓN DE REDIRECCIÓN CENTRALIZADA
 function redirigir($type, $key)
 {
     // 'type' puede ser 'exito' o 'error'
@@ -52,7 +51,7 @@ function redirigir($type, $key)
 
 
 // ======================================================================
-// 4. **PROCESAR SECCIÓN DE PERFIL (DATOS PERSONALES)**
+// 4. PROCESAR SECCIÓN DE PERFIL (DATOS PERSONALES)
 // ======================================================================
 if ($seccion === 'perfil') {
     $nombre = trim($_POST['nombre'] ?? '');
@@ -97,7 +96,7 @@ if ($seccion === 'perfil') {
     }
 }
 // ======================================================================
-// 5. **PROCESAR SECCIÓN DE MATERIAS Y MODALIDAD (SOLUCIÓN DEFINITIVA Y UNIFICADA)**
+// 5. PROCESAR SECCIÓN DE MATERIAS Y MODALIDAD
 // ======================================================================
 elseif ($seccion === 'materias') {
     $modalidad_tutor = $_POST['modalidad_tutor'] ?? null;
@@ -127,7 +126,7 @@ elseif ($seccion === 'materias') {
         // 3. UPSERT: Insertar o Reactivar
         if (!empty($materias_impartidas)) {
             
-            // LA CORRECCIÓN CLAVE ESTÁ AQUÍ (activo = 1)
+            // Inserta la oferta o la reactiva (activo = 1)
             $sql_upsert_oferta = "
                 INSERT INTO ofertas_tutorias (id_tutor, id_materia, precio_hora, cupo_maximo, activo)
                 VALUES (:tutor_id, :id_materia, :precio_hora, :cupo_maximo, 1)
@@ -166,8 +165,6 @@ elseif ($seccion === 'materias') {
     } catch (PDOException $e) {
         $conn->rollBack();
         
-        // **SI ESTO SIGUE FALLANDO, USA ESTA LÍNEA PARA VER EL ERROR EXACTO:**
-        // die("Fallo en UPSERT/Desactivación: " . $e->getMessage()); 
         
         error_log("Error de BD en procesar_perfil.php (materias): " . $e->getMessage()); 
         redirigir('error', 'db_materias');
@@ -175,7 +172,7 @@ elseif ($seccion === 'materias') {
 }
 
 // ======================================================================
-// 6. **PROCESAR SECCIÓN DE DISPONIBILIDAD Y NOTIFICAR INSCRIPCIONES**
+// 6. PROCESAR SECCIÓN DE DISPONIBILIDAD Y NOTIFICAR INSCRIPCIONES
 // ======================================================================
 elseif ($seccion === 'disponibilidad') {
     $horarios_recibidos = $_POST['horarios'] ?? [];
@@ -472,7 +469,7 @@ elseif ($seccion === 'disponibilidad') {
     }
 }
 
-// 7. **REDIRECCIÓN POR DEFECTO** (Si no se reconoce la sección)
+// 7. REDIRECCIÓN POR DEFECTO (Si no se reconoce la sección)
 redirigir('error', 'seccion_invalida');
 
 ?>

@@ -21,7 +21,7 @@ if ($id_billetera && $monto > 0 && in_array($tipo, ['RECARGA', 'AJUSTE_NEGATIVO'
         // Determinar el monto final para el UPDATE (positivo o negativo)
         $monto_final = ($tipo === 'AJUSTE_NEGATIVO') ? -$monto : $monto;
         
-        // CORRECCIÓN CLAVE: Mapear el tipo de operación del formulario a los tipos de DB permitidos.
+        // Mapear el tipo de operación del formulario a los tipos de DB permitidos.
         $tipo_movimiento = ($tipo === 'AJUSTE_NEGATIVO') ? 'EGRESO' : 'INGRESO';
 
         // La referencia se modificará para guardar el motivo real (Recarga o Ajuste)

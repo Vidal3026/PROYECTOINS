@@ -4,7 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-include '../Includes/db.php'; // Asegúrate de que esta ruta sea correcta para tu conexión
+include '../Includes/db.php';
 
 // 1. Verificación de Seguridad y Método
 if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'estudiante' || $_SERVER['REQUEST_METHOD'] !== 'POST') {

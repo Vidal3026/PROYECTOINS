@@ -4,7 +4,6 @@ header('Content-Type: application/json');
 
 // Incluir la conexión a la base de datos y la sesión
 session_start();
-// NOTA: Reemplaza con la ruta correcta a tu archivo de conexión y configuración de DB (PDO)
 include "../Includes/db.php"; 
 
 // 1. VERIFICACIÓN DE SESIÓN (Tutor)
@@ -126,5 +125,4 @@ foreach ($tutorias as $t) {
 // 4. Devolver el array de eventos como JSON
 echo json_encode($eventos);
 
-// NOTA: Con PDO, no necesitas cerrar explícitamente $stmt y $conn si el script termina.
 ?>

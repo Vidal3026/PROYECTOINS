@@ -52,7 +52,7 @@ $id_tutor = $_SESSION['id'];
                         $total_tutorias_confirmadas = 0;
                         $total_horas_impartidas = 0;
                         $tutorias_pendientes_revision = 0;
-                        $promedio_general = 0; // Nueva variable para la calificación
+                        $promedio_general = 0;
 
                         try {
                             // 1. Total de Tutorías Confirmadas
@@ -69,14 +69,14 @@ $id_tutor = $_SESSION['id'];
                             $stmt_horas->execute();
                             $total_horas_impartidas = $stmt_horas->fetch(PDO::FETCH_ASSOC)['total_horas'] ?? 0;
 
-                            // 3. Solicitudes Pendientes de Revisión (Asumimos estado 'SOLICITADA' o 'PENDIENTE')
+                            // 3. Solicitudes Pendientes de Revisión
                             $sql_pendientes = "SELECT COUNT(id) AS total FROM solicitudes_tutorias WHERE id_tutor = :id_tutor AND estado = 'PENDIENTE'";
                             $stmt_pendientes = $conn->prepare($sql_pendientes);
                             $stmt_pendientes->bindParam(':id_tutor', $id_tutor, PDO::PARAM_INT);
                             $stmt_pendientes->execute();
                             $tutorias_pendientes_revision = $stmt_pendientes->fetch(PDO::FETCH_ASSOC)['total'] ?? 0;
 
-                            // 4. Calificación Promedio General (USANDO TU TABLA 'calificaciones_tutorias')
+                            // 4. Calificación Promedio General
                             $sql_promedio = "
                                 SELECT AVG(calificacion) AS promedio_general 
                                 FROM calificaciones_tutorias

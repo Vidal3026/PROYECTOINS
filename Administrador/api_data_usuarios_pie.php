@@ -1,5 +1,4 @@
 <?php
-// Admin/api_data_usuarios_pie.php
 session_start();
 include '../Includes/db.php'; 
 

@@ -18,7 +18,6 @@ if (isset($_GET['fecha_inicio']) && isset($_GET['fecha_fin'])) {
     $fecha_fin = $_GET['fecha_fin'];
 }
 
-// Nota: No se requiere incluir el archivo Wallet aquí a menos que lo uses directamente
 ?>
 <!DOCTYPE html>
 <html lang="en">

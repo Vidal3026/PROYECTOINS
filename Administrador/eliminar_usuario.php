@@ -34,7 +34,6 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
         $stmt_retiros->execute();
 
         // c. OTROS REGISTROS DEPENDIENTES (Ej: Solicitudes de Tutorias, Mensajes, etc.)
-        // Si tu tabla 'solicitudes_tutorias' tiene id_tutor o id_estudiante, añádelo aquí:
         /*
         $sql_tutorias = "DELETE FROM solicitudes_tutorias WHERE id_tutor = :id OR id_estudiante = :id";
         $stmt_tutorias = $conn->prepare($sql_tutorias);

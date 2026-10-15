@@ -233,7 +233,7 @@ try {
                 showConfirmButton: false,
                 timer: 2500
             }).then(() => {
-                // Opcional: limpiar la URL para que la alerta no aparezca si se recarga
+                // Limpia la URL para que la alerta no reaparezca al recargar
                 if (history.replaceState) {
                     const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
                     window.history.replaceState({ path: cleanUrl }, '', cleanUrl);

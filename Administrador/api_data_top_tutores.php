@@ -1,5 +1,5 @@
 <?php
-// Admin/api_data_top_tutores.php (CORREGIDO: ASOCIA COMISION CON EL TUTOR VIA SOLICITUD)
+// Tutores que más comisiones generan (la comisión se asocia al tutor por la solicitud)
 session_start();
 include '../Includes/db.php'; 
 header('Content-Type: application/json');
@@ -20,11 +20,10 @@ try {
         SUM(m.monto) AS total_comision
     FROM movimientos_billetera m
     
-    -- Expresión regular o función para obtener el ID de solicitud de la referencia:
-    -- Esto ASUME que la referencia SIEMPRE es como 'Comisión Plataforma Solicitud #ID'
+    -- Extrae el ID de la solicitud del final de la referencia ('... Solicitud #ID')
     JOIN solicitudes_tutorias st ON st.id = CAST(SUBSTRING_INDEX(m.referencia, '#', -1) AS UNSIGNED)
     
-    -- Ahora unimos a usuarios (tutores)
+    -- Datos del tutor
     JOIN usuarios u ON st.id_tutor = u.id
     
     WHERE m.tipo = 'COMISION' 

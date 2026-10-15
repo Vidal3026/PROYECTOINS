@@ -130,9 +130,9 @@ $id_estudiante = $_SESSION['id'];
                         $('#modalHoraFin').text(endTime);
                         $('#modalDuracion').text(event.extendedProps.duracion + ' horas');
 
-                        // Manejar el estado y color del badge (CORREGIDO)
+                        // Estado y color del badge
                         var estado = event.extendedProps.estado || 'CONFIRMADA';
-                        // 🟢 FINAL: COMPLETADA = VERDE (bg-success); CONFIRMADA = AZUL FUERTE (bg-primary) 🟢
+                        // COMPLETADA = verde (bg-success); CONFIRMADA = azul (bg-primary)
                         $('#modalEstado').text(estado).removeClass('bg-success bg-secondary bg-info bg-primary').addClass(
                             // Si está COMPLETADA, es verde. Si no, es azul primario.
                             estado === 'COMPLETADA' ? 'bg-success' : 'bg-primary'

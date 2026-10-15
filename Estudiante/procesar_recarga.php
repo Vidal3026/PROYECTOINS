@@ -1,6 +1,5 @@
 <?php
 session_start();
-// Asegúrate de que db.php contiene $conn y Wallet.php contiene las funciones sueltas
 include '../Includes/db.php'; 
 include '../Includes/Wallet.php';
 include '../Includes/PayPal.php';
@@ -60,8 +59,7 @@ try {
     // Confirmar ambas operaciones
     $conn->commit();
     
-    // Cambiado de "¡Recarga exitosa! Se han añadido..." a tu preferencia:
-    $msg = "Recarga exitosa. Se han añadido \${$monto} a tu saldo."; // <-- Nuevo mensaje
+    $msg = "Recarga exitosa. Se han añadido \${$monto} a tu saldo.";
     header("Location: Billetera.php?success=recarga_acreditada&msg=" . urlencode($msg));
     exit();
 

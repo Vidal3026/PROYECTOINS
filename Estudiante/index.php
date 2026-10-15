@@ -1,5 +1,4 @@
 <?php
-// Asegúrate de que 'Includes/Nav.php' establece la conexión PDO en la variable $conn
 include 'Includes/Nav.php';
 
 // 1. VERIFICACIÓN DE SESIÓN

@@ -1,5 +1,4 @@
 <?php
-// ¡DEBE SER LO PRIMERO EN EL ARCHIVO!
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

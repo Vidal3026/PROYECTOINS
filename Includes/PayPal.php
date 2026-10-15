@@ -29,7 +29,6 @@ function paypal_url_api()
 if (!function_exists('paypal_http')) {
     /**
      * Ejecuta una petición HTTP y devuelve [código_http, cuerpo_decodificado].
-     * (Envuelta en function_exists para poder sustituirla en pruebas automatizadas.)
      * @throws RuntimeException si la conexión falla.
      */
     function paypal_http($metodo, $url, array $cabeceras = [], $cuerpo = null)

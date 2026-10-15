@@ -1,6 +1,4 @@
 <?php
-// NOTA IMPORTANTE: Si 'Includes/Nav.php' no inicia la sesión, debes agregar session_start() aquí.
-// Pero asumiremos que ya lo hace.
 // Se incluye el archivo de navegación
 include 'Includes/Nav.php';
 
@@ -11,7 +9,6 @@ if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'tutor') {
 }
 $id_tutor = $_SESSION['id'];
 
-// Asegúrate de que esta ruta sea correcta
 include "../Includes/db.php";
 
 // 1. CONSULTA DE TUTORÍAS CONFIRMADAS Y COMPLETADAS RECIENTES

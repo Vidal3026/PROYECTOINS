@@ -1,5 +1,4 @@
 <?php
-// Admin/api_data_flujo_efectivo.php
 session_start();
 include '../Includes/db.php'; 
 header('Content-Type: application/json');

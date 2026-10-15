@@ -4,7 +4,6 @@ include '../Includes/db.php';
 include '../Includes/Wallet.php'; 
 
 // 1. VERIFICACIÓN DE SESIÓN (ADMIN)
-// 🛑 Reemplaza 'admin' con el rol de tu administrador si es diferente
 if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'admin') { 
     header("Location: ../Login.php");
     exit();

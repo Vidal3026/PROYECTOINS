@@ -382,7 +382,7 @@ unset($_SESSION['tipo_mensaje']);
                 modal.find('#comentario').val('');
             });
             
-            // Opcional: Limpiar el formulario al cerrarse el modal
+            // Limpia el formulario al cerrar el modal
             $('#calificarModal').on('hidden.bs.modal', function () {
                 $(this).find('form').trigger('reset');
             });

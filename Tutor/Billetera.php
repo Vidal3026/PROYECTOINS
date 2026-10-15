@@ -4,7 +4,6 @@ include 'Includes/Nav.php';
 include '../Includes/Wallet.php';
 
 // 1. VERIFICACIÓN DE SESIÓN (Tutor)
-// Este bloque ha sido limpiado para evitar el error 'T_STRING' en la línea 9
 if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'tutor') {
     header("Location: ../Login.php");
     exit();

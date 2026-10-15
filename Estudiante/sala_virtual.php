@@ -23,7 +23,7 @@ if ($solicitud_id === 0) {
 }
 
 // 3. CONSULTA SEGURA DE LA TUTORÍA (Verificación de Propiedad del Estudiante)
-// Asumimos que link_sala_virtual está en solicitudes_tutorias (como corregimos)
+// El enlace de la sala (link_sala_virtual) se guarda en solicitudes_tutorias
 $sql = "
     SELECT 
         s.*, 
@@ -108,7 +108,7 @@ if ($estado !== 'CONFIRMADA' && $estado !== 'en_progreso') {
 }
 
 // 5. LÓGICA DE TIEMPOS (Permitir acceso 5 minutos antes)
-// CORREGIDO: Usar la zona horaria correcta para El Salvador
+// Zona horaria de El Salvador
 date_default_timezone_set('America/El_Salvador'); 
 $timestamp_inicio = strtotime($solicitud['fecha'] . ' ' . $solicitud['hora_inicio']);
 $timestamp_fin = strtotime($solicitud['fecha'] . ' ' . $solicitud['hora_fin']);

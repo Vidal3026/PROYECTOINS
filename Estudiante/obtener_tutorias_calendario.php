@@ -4,7 +4,6 @@ header('Content-Type: application/json');
 
 // Incluir la conexión a la base de datos y la sesión
 session_start();
-// NOTA: Reemplaza con la ruta correcta a tu archivo de conexión si es necesario
 include "../Includes/db.php"; 
 
 // 1. VERIFICACIÓN DE SESIÓN (Estudiante)

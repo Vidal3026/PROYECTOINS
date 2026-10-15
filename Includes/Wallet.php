@@ -328,7 +328,6 @@ function cancelar_tutoria_con_reembolso($conn, $id_tutor, $id_solicitud, $motivo
     }
 }
 
-// ... (Dentro de Includes/Wallet.php, después de las otras funciones)
 
 /**
  * Ejecuta la transacción de retiro (EGRESO) una vez que el administrador
@@ -418,11 +417,9 @@ function acreditar_saldo_y_log(PDO $conn, int $user_id, float $monto, string $re
         throw new Exception("El monto a depositar debe ser positivo.");
     }
     
-    // Obtener o crear el ID de la billetera (reutilizando tu función existente)
-    // Asumo que obtener_o_crear_billetera_id() está definida en este mismo archivo.
+    // Obtener o crear el ID de la billetera
     $billetera_id = obtener_o_crear_billetera_id($conn, $user_id);
 
-    // ********* GESTIÓN DE TRANSACCIÓN ELIMINADA *********
 
     // 1. Actualizar saldo en la tabla 'billeteras'
     $sql_update = "UPDATE billeteras SET saldo = saldo + :monto WHERE id = :billetera_id";
@@ -440,9 +437,8 @@ function acreditar_saldo_y_log(PDO $conn, int $user_id, float $monto, string $re
     $stmt_log->bindParam(':referencia', $referencia);
     $stmt_log->execute();
     
-    // ********* GESTIÓN DE TRANSACCIÓN ELIMINADA *********
     
-    // Ya no hay catch aquí, cualquier error será capturado por el script principal
+    // Los errores los captura el script que llama a esta función
 }
 
 /**

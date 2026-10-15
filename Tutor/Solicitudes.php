@@ -1,7 +1,7 @@
 <?php
 include 'Includes/Nav.php';
 
-include "../Includes/db.php"; // Incluye tu conexión a la BD
+include "../Includes/db.php";
 $tutor_id = $_SESSION['id'];
 
 // 2. CONSULTA DE SOLICITUDES DIRIGIDAS AL TUTOR

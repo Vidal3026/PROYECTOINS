@@ -97,7 +97,6 @@ try {
                     </ol>
 
                     <?php
-                    // Asegúrate de que esta parte esté después de session_start() y antes de cualquier HTML
                     
                     $alert_message = '';
                     $alert_type = '';
@@ -110,7 +109,6 @@ try {
                         switch ($error_code) {
                             case 'pago_fallido':
                                 $alert_type = 'danger';
-                                // 🛑 Usa el mensaje específico de la función Wallet
                                 $alert_message = "Transacción Fallida: {$message}. Por favor, recarga tu billetera e inténtalo de nuevo.";
                                 break;
                             case 'no_solicitud_id':

@@ -17,7 +17,6 @@ $solicitud_id = isset($_GET['id']) && is_numeric($_GET['id']) ? (int)$_GET['id']
 if ($solicitud_id === 0) {
     $_SESSION['mensaje'] = "Error: ID de tutoría inválido. No se puede acceder a la sala.";
     $_SESSION['tipo_mensaje'] = "danger";
-    // *** PUNTO DE REDIRECCIÓN (Falla 1) ***
     header("Location: proximas_tutorias.php");
     exit();
 }
@@ -86,7 +85,6 @@ try {
 if (!$solicitud) { 
     $_SESSION['mensaje'] = "Tutoría #{$solicitud_id} no encontrada o no te pertenece.";
     $_SESSION['tipo_mensaje'] = "danger";
-    // *** PUNTO DE REDIRECCIÓN (Falla 2) ***
     header("Location: proximas_tutorias.php");
     exit();
 }
@@ -100,7 +98,6 @@ $puede_operar = $solicitud['estado'] === 'CONFIRMADA' || $solicitud['estado'] ==
 if (!$puede_operar && $solicitud['estado'] !== 'COMPLETADA') {
     $_SESSION['mensaje'] = "Acceso denegado. La tutoría #{$solicitud_id} tiene el estado '{$solicitud['estado']}'.";
     $_SESSION['tipo_mensaje'] = "warning";
-    // *** PUNTO DE REDIRECCIÓN (Falla 3: El problema más probable que enfrentas si ya pasó Falla 2) ***
     header("Location: Solicitudes.php");
     exit();
 }

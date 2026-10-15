@@ -1,5 +1,5 @@
 <?php
-// Admin/api_data_ingresos.php (Ahora calcula Ganancia Neta por COMISION)
+// Ganancia neta de la plataforma por comisiones
 session_start();
 include '../Includes/db.php'; 
 
@@ -14,7 +14,7 @@ if (!isset($_SESSION['rol']) || $_SESSION['rol'] !== "admin") {
 $datos_grafico = ['labels' => [], 'data' => []];
 
 try {
-    // CORRECCIÓN: Usamos la tabla 'movimientos' y filtramos por 'tipo = COMISION'
+    // Suma los movimientos de tipo COMISION
     $sql = "SELECT 
                 DATE_FORMAT(fecha_movimiento, '%Y-%m') AS mes_orden,
                 DATE_FORMAT(fecha_movimiento, '%b %Y') AS mes_etiqueta,

@@ -2,20 +2,19 @@
 // Tutor/configurar_perfil.php
 include 'Includes/Nav.php';
 
-// 🛑 Incluir la conexión a la base de datos
+// Conexión a la base de datos
 if (!isset($conn)) {
-    // Asegúrate de que esta ruta sea correcta para la carpeta Tutor/
     include '../Includes/db.php';
 }
 
-// 1. **AUTENTICACIÓN Y VARIABLES**
+// 1. AUTENTICACIÓN Y VARIABLES
 if ($usuario['rol'] !== 'tutor') {
     header('Location: ../index.php');
     exit;
 }
 $tutor_id = $usuario['id'];
 
-// 2. **CARGAR DATOS DEL PERFIL** (Tabla 'usuarios')
+// 2. CARGAR DATOS DEL PERFIL (Tabla 'usuarios')
 $perfil_tutor = [];
 try {
     // Se seleccionan los campos específicos del tutor.
@@ -28,7 +27,7 @@ try {
     $error_msg_perfil = "Error al cargar perfil: " . $e->getMessage();
 }
 
-// 3. **CARGAR DISPONIBILIDAD** (Tabla 'disponibilidad')
+// 3. CARGAR DISPONIBILIDAD (Tabla 'disponibilidad')
 $dias_semana = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
 $disponibilidad_actual = [];
 try {
@@ -44,7 +43,7 @@ try {
     $error_msg_dispo = "Error al cargar disponibilidad: " . $e->getMessage();
 }
 
-// 4. **CARGAR OFERTAS Y PRECIOS DEL TUTOR** $todas_materias = [];
+// 4. CARGAR OFERTAS Y PRECIOS DEL TUTOR
 $materias_precios_actuales = [];
 $materias_cupos_actuales = []; // [id_materia => cupo_maximo]
 
@@ -56,7 +55,7 @@ try {
     // 2. Obtener las OFERTAS y el PRECIO que imparte el tutor desde la tabla CORRECTA
     $sql_tutor_ofertas = "SELECT id_materia, precio_hora, cupo_maximo FROM ofertas_tutorias WHERE id_tutor = :tutor_id AND activo = 1";
     $stmt_ofertas = $conn->prepare($sql_tutor_ofertas);
-    $stmt_ofertas->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT); // Asegúrate que $tutor_id es el ID del tutor autenticado
+    $stmt_ofertas->bindParam(':tutor_id', $tutor_id, PDO::PARAM_INT);
     $stmt_ofertas->execute();
     
     // Almacenar los resultados en un array asociativo: [id_materia => precio_hora]
@@ -72,7 +71,7 @@ try {
 }
 
 
-// 5. **LÓGICA DE MENSAJES Y PESTAÑAS ACTIVAS**
+// 5. LÓGICA DE MENSAJES Y PESTAÑAS ACTIVAS
 $estado_exito = $_GET['exito'] ?? '';
 $estado_error = $_GET['error'] ?? '';
 
@@ -247,8 +246,6 @@ if ($estado_exito === 'perfil') {
                                                         <?php foreach ($todas_materias as $materia): ?>
                                                             <?php
                                                             // Preparamos el array de materias actuales para encontrar el precio guardado.
-                                                            // DEBES MODIFICAR la carga de datos en PHP (sección 4) para obtener el precio
-                                                            // Asumiendo que ahora 'materias_actuales' es un array asociativo [id_materia => precio]
                                                             
                                                             // Si el ID de la materia está en el array de materias actuales (la llave existe)
                                                             $checked = isset($materias_precios_actuales[$materia['id']]) ? 'checked' : '';
@@ -390,14 +387,13 @@ if ($estado_exito === 'perfil') {
             const horaFin = document.getElementById('hora_fin');
             const horarioVacioMsg = document.getElementById('horario_vacio_msg');
             const formHorarioPrincipal = document.getElementById('form_horario_principal');
-            const btnGuardarHorario = document.getElementById('btn_guardar_horario'); // Asumo que este ID existe en tu HTML
+            const btnGuardarHorario = document.getElementById('btn_guardar_horario');
 
             // Variables de Estado
             let bloquesHorario = [];
             let editingIndex = null; // Índice del bloque que estamos editando
 
             // Cargar datos actuales desde PHP al array de JS
-            // **Asegúrate de que $disponibilidad_actual es un array de objetos con todos los bloques**
             const disponibilidadActual = <?= json_encode($disponibilidad_actual ?? []) ?>;
             // La lista de días de la semana para ordenar
             const diasSemana = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
@@ -476,7 +472,7 @@ if ($estado_exito === 'perfil') {
                     });
                 });
 
-                // 🛑 AÑADIR EVENTOS DE EDICIÓN
+                // Eventos de edición
                 document.querySelectorAll('.btn-editar').forEach(button => {
                     button.addEventListener('click', function () {
                         editarHorario(parseInt(this.getAttribute('data-index')));
@@ -604,8 +600,6 @@ document.querySelectorAll('.materia-checkbox').forEach(checkbox => {
             if (this.checked) {
                 precioInput.focus();
             } else {
-                // Opcional: limpiar el precio si se desmarca
-                // precioInput.value = '0.00'; 
             }
         }
     });

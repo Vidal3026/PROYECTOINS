@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 
 // Incluir la conexión a la base de datos y la sesión
 session_start();
-include '../Includes/db.php'; // Asegúrate de que esta ruta sea correcta
+include '../Includes/db.php';
 
 // 1. VERIFICACIÓN DE SESIÓN (Tutor)
 if (!isset($_SESSION['id']) || $_SESSION['rol'] !== 'tutor') {

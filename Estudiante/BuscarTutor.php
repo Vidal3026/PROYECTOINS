@@ -2,7 +2,7 @@
 // Incluir la navegación y la conexión a la base de datos
 include 'Includes/Nav.php';
 
-// 🛑 1. OBTENER DATOS PARA EL FILTRO DE MATERIAS
+// 1. OBTENER DATOS PARA EL FILTRO DE MATERIAS
 $materias_todas = [];
 try {
     $sql_materias = "SELECT id, nombre_materia FROM materias ORDER BY nombre_materia";
@@ -13,12 +13,12 @@ try {
     error_log("Error al cargar materias para el filtro: " . $e->getMessage());
 }
 
-// 🛑 2. CAPTURAR Y SANEAR LOS PARÁMETROS DE BÚSQUEDA
+// 2. CAPTURAR Y SANEAR LOS PARÁMETROS DE BÚSQUEDA
 $filtro_materia_id = $_GET['materia'] ?? '';
 $filtro_modalidad = $_GET['modalidad'] ?? '';
 $filtro_precio_max = $_GET['precio_max'] ?? '';
 
-// 🛑 3. CONSTRUIR LA CONSULTA SQL DINÁMICA
+// 3. CONSTRUIR LA CONSULTA SQL DINÁMICA
 $where_clauses = ["ot.activo = 1"]; // Solo ofertas activas
 $join_clauses = [];
 $params = [];
@@ -179,7 +179,7 @@ try {
                             <div class="card-body">
                                 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-3">
                                     <?php if (count($ofertas) > 0): ?>
-                                        <?php foreach ($ofertas as $oferta): // 🛑 Cambiamos $tutores a $ofertas ?>
+                                        <?php foreach ($ofertas as $oferta): ?>
                                             <?php
                                             // Determinar la ruta de la imagen del tutor
                                             $ruta_imagen = !empty($oferta['perfil_imagen']) ?

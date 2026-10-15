@@ -21,8 +21,6 @@ if (isset($_GET['fecha_inicio']) && isset($_GET['fecha_fin'])) {
 
 // 3. CONSULTA SQL DINÁMICA
 // Usamos el id_billetera = 1 como la billetera central del administrador para el historial,
-// aunque si el Admin quiere ver TODO el historial de TODAS las billeteras, se quita el filtro id_billetera.
-// Asumiremos que el Admin quiere ver solo los movimientos que afectan a la plataforma (o a sus ganancias/comisiones).
 
 $sql = "SELECT 
             m.id, 
@@ -32,7 +30,7 @@ $sql = "SELECT
             m.referencia, 
             m.fecha_movimiento,
             u.nombre AS usuario_billetera
-        FROM movimientos_billetera m  -- ¡CORRECCIÓN DEL NOMBRE DE LA TABLA!
+        FROM movimientos_billetera m
         
         -- Y usamos b.id para la unión
         LEFT JOIN billeteras b ON m.id_billetera = b.id 
@@ -66,7 +64,7 @@ try {
 }
 
 // Tipos de movimiento (para el selector de filtro)
-$tipos_movimiento = ['TODOS', 'INGRESO', 'EGRESO', 'COMISION', 'RECARGA', 'RETIRO']; // Ajusta según tus tipos
+$tipos_movimiento = ['TODOS', 'INGRESO', 'EGRESO', 'COMISION', 'RECARGA', 'RETIRO'];
 ?>
 
 <!DOCTYPE html>
