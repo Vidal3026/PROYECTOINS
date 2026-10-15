@@ -1,9 +1,5 @@
 <?php
-/**
- * Protección CSRF: un token aleatorio por sesión que los formularios y peticiones fetch
- * deben enviar de vuelta. Evita que otra página haga acciones en nombre del usuario.
- * Requiere que la sesión ya esté iniciada (session_start()).
- */
+// Token CSRF para formularios y peticiones fetch.
 
 /** Devuelve (y crea si no existe) el token CSRF de la sesión actual. */
 function csrf_token()

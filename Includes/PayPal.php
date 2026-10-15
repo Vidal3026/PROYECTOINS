@@ -1,17 +1,5 @@
 <?php
-/**
- * Cliente mínimo de la API REST de PayPal (Orders v2) para recargar la billetera.
- * Documentación: https://developer.paypal.com/docs/api/orders/v2/
- *
- * Flujo (todo el dinero se valida en el servidor, nunca en el navegador):
- * 1. El botón de PayPal llama a Estudiante/paypal_crear_orden.php: se registra la recarga PENDIENTE
- *    y se crea una orden en PayPal por el monto exacto (paypal_crear_orden).
- * 2. El estudiante aprueba el pago en la ventana de PayPal.
- * 3. El botón llama a Estudiante/paypal_capturar_orden.php: el servidor captura la orden
- *    (paypal_capturar_orden), comprueba estado, monto y moneda, y acredita el saldo.
- * 4. Opcional: paypal_webhook.php recibe PAYMENT.CAPTURE.COMPLETED (firma verificada con PayPal)
- *    por si el navegador se cerró antes del paso 3. confirmar_recarga_pagada() evita duplicados.
- */
+// Conexión con la API de PayPal (Orders v2) para recargar la billetera.
 require_once __DIR__ . '/config_app.php';
 
 /** Indica si hay credenciales de PayPal configuradas (si no, se usa la recarga simulada). */
@@ -27,10 +15,7 @@ function paypal_url_api()
 }
 
 if (!function_exists('paypal_http')) {
-    /**
-     * Ejecuta una petición HTTP y devuelve [código_http, cuerpo_decodificado].
-     * @throws RuntimeException si la conexión falla.
-     */
+    // Petición HTTP con cURL.
     function paypal_http($metodo, $url, array $cabeceras = [], $cuerpo = null)
     {
         $ch = curl_init($url);
@@ -58,10 +43,7 @@ if (!function_exists('paypal_http')) {
     }
 }
 
-/**
- * Obtiene un access token OAuth2 (client_credentials). Se reutiliza durante la misma petición.
- * @throws RuntimeException
- */
+// Token de acceso de PayPal.
 function paypal_obtener_token()
 {
     static $token = null;
@@ -83,10 +65,7 @@ function paypal_obtener_token()
     return $token;
 }
 
-/**
- * Petición autenticada a la API de PayPal.
- * @param string|null $id_idempotencia Valor de PayPal-Request-Id: repetir la petición con el mismo valor no duplica la operación.
- */
+// Petición autenticada a la API de PayPal.
 function paypal_api($metodo, $ruta, ?array $cuerpo = null, $id_idempotencia = null)
 {
     $cabeceras = [
@@ -112,13 +91,7 @@ function paypal_monto($monto)
     return number_format((float) $monto, 2, '.', '');
 }
 
-/**
- * Crea una orden de pago (intent CAPTURE) por el monto exacto de la recarga.
- *
- * @param string $referencia Identificador propio de la recarga (viaja como custom_id e invoice_id).
- * @return string ID de la orden en PayPal.
- * @throws RuntimeException
- */
+// Crea una orden de pago por el monto de la recarga.
 function paypal_crear_orden($referencia, $monto, $descripcion)
 {
     [$codigo, $datos] = paypal_api('POST', '/v2/checkout/orders', [
@@ -143,13 +116,7 @@ function paypal_crear_orden($referencia, $monto, $descripcion)
     return $datos['id'];
 }
 
-/**
- * Captura (cobra) una orden aprobada por el comprador.
- * Si la orden ya había sido capturada, devuelve la captura existente (operación idempotente).
- *
- * @return array ['estado' => 'COMPLETADO'|'PENDIENTE'|'RECHAZADO'|'NO_APROBADO', 'capture_id', 'monto', 'moneda', 'referencia', 'reintentar' => bool]
- * @throws RuntimeException
- */
+// Cobra una orden aprobada. Si ya estaba cobrada, devuelve el cobro existente.
 function paypal_capturar_orden($order_id)
 {
     [$codigo, $datos] = paypal_api('POST', '/v2/checkout/orders/' . rawurlencode($order_id) . '/capture', null, 'capturar-' . $order_id);
@@ -187,11 +154,7 @@ function paypal_capturar_orden($order_id)
     ];
 }
 
-/**
- * Verifica con PayPal que un webhook es auténtico (POST /v1/notifications/verify-webhook-signature).
- * @param array $cabeceras Cabeceras HTTP recibidas (nombres en cualquier formato de mayúsculas).
- * @param string $cuerpo Cuerpo crudo del webhook (se reenvía sin modificar).
- */
+// Verifica con PayPal que el webhook es auténtico.
 function paypal_webhook_valido(array $cabeceras, $cuerpo)
 {
     if (PAYPAL_WEBHOOK_ID === '') {

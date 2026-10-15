@@ -130,7 +130,6 @@ $total_notificaciones_horario = count($notificaciones_horario);
             </a>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                 <li><a class="dropdown-item" href="Configperfil_usuario.php">Perfil</a></li>
-                <li><a class="dropdown-item" href="404.html">Pagina de prueba</a></li>
                 <li><hr class="dropdown-divider" /></li>
                 <li><a class="dropdown-item" href="cerrarSesion.php">Cerrar Sesión</a></li>
             </ul>

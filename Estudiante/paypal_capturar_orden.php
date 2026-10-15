@@ -1,12 +1,5 @@
 <?php
-/**
- * Paso 2 del pago con PayPal: lo llama el botón cuando el estudiante aprueba el pago.
- * Captura (cobra) la orden en PayPal y, si el cobro se completó por el monto y la moneda
- * correctos, acredita el saldo una sola vez.
- *
- * Entrada (JSON): {"orderID": "..."}   Cabecera: X-CSRF-Token
- * Salida (JSON):  {"ok": true, "mensaje": "...", "redirect": "..."}  o  {"error": "...", "reintentar": bool}
- */
+// Cobra la orden aprobada en PayPal y acredita el saldo.
 session_start();
 include '../Includes/db.php';
 include '../Includes/Wallet.php';

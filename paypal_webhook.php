@@ -1,13 +1,5 @@
 <?php
-/**
- * Webhook de PayPal (opcional): respaldo por si el estudiante cerró el navegador antes de que
- * la Billetera capturara el pago, o si PayPal dejó la captura en revisión (PENDING).
- *
- * Es público (sin sesión). Cada evento se verifica con la API de PayPal
- * (verify-webhook-signature) usando PAYPAL_WEBHOOK_ID antes de tocar la base de datos.
- * Registrar en developer.paypal.com > tu app > Webhooks: APP_URL_BASE . '/paypal_webhook.php'
- * con los eventos PAYMENT.CAPTURE.COMPLETED y PAYMENT.CAPTURE.DENIED.
- */
+// Webhook de PayPal: confirma la recarga si el navegador se cerró antes de terminar el pago.
 include 'Includes/db.php';
 include 'Includes/Wallet.php';
 include 'Includes/PayPal.php';

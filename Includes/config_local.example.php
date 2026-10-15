@@ -1,12 +1,5 @@
 <?php
-/**
- * Plantilla de configuración local.
- * Copia este archivo como Includes/config_local.php y coloca tus valores reales.
- * config_local.php está en .gitignore: nunca lo subas al repositorio.
- *
- * Credenciales de PayPal Sandbox (gratis): https://developer.paypal.com
- * Apps & Credentials > (modo Sandbox) > tu app > Client ID y Secret.
- */
+// Copiar como config_local.php y poner las credenciales de PayPal Sandbox.
 
 define('PAYPAL_CLIENT_ID', 'tu-client-id-sandbox');
 define('PAYPAL_CLIENT_SECRET', 'tu-secret-sandbox');

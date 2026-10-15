@@ -1,11 +1,5 @@
 <?php
-/**
- * Paso 1 del pago con PayPal: lo llama el botón de PayPal (fetch) desde la Billetera.
- * Registra la recarga como PENDIENTE y crea la orden en PayPal por el monto exacto.
- *
- * Entrada (JSON): {"monto": 25.00}   Cabecera: X-CSRF-Token
- * Salida (JSON):  {"id": "<order id de PayPal>"}  o  {"error": "..."}
- */
+// Crea la orden de PayPal de una recarga (lo llama el botón de la billetera).
 session_start();
 include '../Includes/db.php';
 include '../Includes/PayPal.php';

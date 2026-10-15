@@ -65,21 +65,7 @@ function obtener_historial_movimientos($conn, $id_billetera)
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
-/**
- * Procesa el pago completo de una solicitud ACEPTADA en una sola transacción:
- * 1. Bloquea la solicitud y la billetera del estudiante (evita cobros dobles por clics simultáneos).
- * 2. Resta el monto total al estudiante.
- * 3. Acredita al tutor el neto (descontadas ambas comisiones).
- * 4. Registra las dos comisiones de la plataforma (tipo COMISION).
- * 5. Marca la solicitud como CONFIRMADA y guarda el desglose.
- *
- * El monto y el tutor se leen de la base de datos, nunca del formulario.
- *
- * @param PDO $conn Conexión a la base de datos.
- * @param int $id_estudiante ID del estudiante que paga (dueño de la solicitud).
- * @param int $id_solicitud ID de la solicitud de tutoría.
- * @return array ['success' => bool, 'codigo' => string, 'message' => string]
- */
+// Cobra al estudiante, descuenta comisiones, paga al tutor y confirma la tutoría (una sola transacción).
 function procesar_transaccion_tutoria($conn, $id_estudiante, $id_solicitud)
 {
     // Las billeteras se crean antes de abrir la transacción (obtener_o_crear_billetera_id puede insertar).
@@ -220,21 +206,7 @@ function procesar_transaccion_tutoria($conn, $id_estudiante, $id_solicitud)
     }
 }
 
-/**
- * Cancela una tutoría CONFIRMADA (ya pagada) por decisión del tutor y reembolsa al estudiante.
- * Todo ocurre en una sola transacción:
- * 1. Al estudiante se le devuelve el 100 % de lo que pagó.
- * 2. Al tutor se le descuenta lo que había recibido por esa tutoría (su saldo puede quedar
- *    negativo si ya lo retiró; se compensa con sus próximos ingresos).
- * 3. Las comisiones de la plataforma de esa tutoría se revierten (movimiento COMISION negativo),
- *    porque el servicio no se prestó.
- *
- * @param PDO $conn Conexión a la base de datos.
- * @param int $id_tutor Tutor que cancela (debe ser el dueño de la tutoría).
- * @param int $id_solicitud Tutoría a cancelar.
- * @param string $motivo Explicación que verá el estudiante.
- * @return array ['success' => bool, 'reembolso' => float, 'message' => string]
- */
+// Cancela una tutoría confirmada y, si estaba pagada, reembolsa al estudiante y revierte el pago al tutor.
 function cancelar_tutoria_con_reembolso($conn, $id_tutor, $id_solicitud, $motivo)
 {
     $stmt = $conn->prepare("SELECT id_estudiante FROM solicitudes_tutorias WHERE id = :id AND id_tutor = :tutor");
@@ -441,17 +413,7 @@ function acreditar_saldo_y_log(PDO $conn, int $user_id, float $monto, string $re
     // Los errores los captura el script que llama a esta función
 }
 
-/**
- * Confirma una recarga pagada con PayPal y acredita el saldo al estudiante.
- * Es idempotente: si la recarga ya estaba COMPLETADA (por ejemplo, llegó primero el webhook
- * y después la captura desde el navegador), no vuelve a acreditar.
- *
- * @param PDO $conn Conexión a la base de datos.
- * @param string $referencia Referencia propia de la recarga (custom_id en PayPal; columna recargas_estudiante.referencia).
- * @param string $id_captura ID de la captura en PayPal.
- * @param float $monto_pagado Monto capturado según PayPal.
- * @return array ['success' => bool, 'ya_procesada' => bool, 'message' => string]
- */
+// Marca la recarga como completada y acredita el saldo (no acredita dos veces).
 function confirmar_recarga_pagada(PDO $conn, string $referencia, string $id_captura, float $monto_pagado)
 {
     try {

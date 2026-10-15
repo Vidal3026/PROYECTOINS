@@ -1,11 +1,6 @@
 <?php
-/**
- * Configuración general de TutoLink: comisiones de la plataforma, cupos y pasarela PayPal.
- *
- * Los datos sensibles (credenciales de PayPal, URL pública) NO se escriben aquí:
- * copia Includes/config_local.example.php como Includes/config_local.php y complétalo.
- * Ese archivo está en .gitignore para que las credenciales no se suban al repositorio.
- */
+// Configuración general: comisiones, cupos y PayPal.
+// Las credenciales van en Includes/config_local.php, que no se sube a git.
 
 if (file_exists(__DIR__ . '/config_local.php')) {
     require_once __DIR__ . '/config_local.php';

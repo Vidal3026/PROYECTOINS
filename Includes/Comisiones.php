@@ -1,16 +1,9 @@
 <?php
-/**
- * Comisiones de la plataforma: cálculo y textos que ven estudiantes y tutores.
- * Los porcentajes se configuran en Includes/config_app.php (COMISION_ESTUDIANTE y COMISION_TUTOR).
- */
+// Comisiones de la plataforma. Los porcentajes se cambian en config_app.php.
 require_once __DIR__ . '/config_app.php';
 
 if (!function_exists('calcular_desglose_pago')) {
-    /**
-     *
-     * @param float $monto_pagado Monto total que paga el estudiante.
-     * @return array Montos redondeados a 2 decimales.
-     */
+    // Reparte el pago: tarifa de servicio, comisión del tutor y lo que recibe el tutor.
     function calcular_desglose_pago($monto_pagado)
     {
         $monto_pagado = round(abs((float) $monto_pagado), 2);
@@ -44,14 +37,7 @@ if (!function_exists('calcular_desglose_pago')) {
         return porcentaje_comision(1 - (1 - COMISION_ESTUDIANTE) * (1 - COMISION_TUTOR));
     }
 
-    /**
-     * Tarjeta informativa con las comisiones, adaptada al rol que la ve.
-     * Cada rol ve solo lo que le corresponde:
-     * - estudiante: la tarifa de servicio incluida en lo que paga (nada sobre lo que recibe el tutor).
-     * - tutor: los descuentos que se aplican al precio de sus tutorías y lo que recibe.
-     * @param string $rol 'estudiante' o 'tutor'
-     * @param float $monto_ejemplo Monto usado en el ejemplo numérico.
-     */
+    // Tarjeta con la información de comisiones según el rol (estudiante o tutor).
     function render_info_comisiones($rol, $monto_ejemplo = 20.00)
     {
         $d = calcular_desglose_pago($monto_ejemplo);
@@ -96,13 +82,7 @@ if (!function_exists('calcular_desglose_pago')) {
         <?php
     }
 
-    /**
-     * Expone a JavaScript el cálculo de comisiones con la misma fórmula del servidor
-     * (solo informativo: los montos reales siempre los calcula el servidor).
-     * - 'estudiante': desgloseTutolink(20) → {pagado: 20, comisionEstudiante: 1}
-     * - 'tutor':      desgloseTutolink(20) → {..., comisionTutor: 1.9, netoTutor: 17.1}
-     * La página del estudiante no recibe el porcentaje del tutor.
-     */
+    // Mismo cálculo en JavaScript para mostrar montos en pantalla.
     function script_comisiones($rol)
     {
         ?>
